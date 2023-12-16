@@ -7,12 +7,12 @@ from PIL import Image
 import config as CONFIG
 
 
-def generate_random_string(length=4):
+def generate_random_string(length=8):
     characters = string.ascii_letters + string.digits
     return "".join(random.choice(characters) for _ in range(length))
 
 
-def upload_file(image, filename, processed=False):
+def upload_file(image, filename, processed=False, plugin_name=""):
     remote_origin_image_url = ""
     remote_processed_image_high_url = ""
     remote_processed_image_low_url = ""
@@ -25,7 +25,7 @@ def upload_file(image, filename, processed=False):
         # save original-size image
         base_filename, _ = os.path.splitext(filename)
         random_tails = generate_random_string()
-        processed_filename = f"{base_filename}_removebg_{random_tails}.png"
+        processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
         local_high_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
         remote_high_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
         remote_processed_image_high_url = f"http://{CONFIG.REMOTE_HOST}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
@@ -33,15 +33,16 @@ def upload_file(image, filename, processed=False):
         # save half-size image
         image_resized = image.resize((image.width // 2, image.height // 2))
         random_tails = generate_random_string()
-        processed_filename = f"{base_filename}_removebg_{random_tails}.png"
+        processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
         local_low_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
         remote_low_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
         remote_processed_image_low_url = f"http://{CONFIG.REMOTE_HOST}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
         image_resized.save(local_low_file)
 
     try:
+        private_key = paramiko.RSAKey(filename=CONFIG.REMOTE_PRIVATE_KEY)
         transport = paramiko.Transport((CONFIG.REMOTE_HOST, 22))
-        transport.connect(username=CONFIG.REMOTE_USERNAME, password=CONFIG.REMOTE_PASSWORD)
+        transport.connect(username=CONFIG.REMOTE_USERNAME, pkey=private_key)
         sftp = paramiko.SFTPClient.from_transport(transport)
         if not processed:
             sftp.put(local_file, remote_file) 

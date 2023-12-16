@@ -17,6 +17,7 @@ from flask import Flask,request,send_file,cli, make_response,send_from_directory
 from PIL import Image, ImageOps, PngImagePlugin
 
 from plugins.remove_bg import RemoveBG
+from plugins.realesrgan import RealESRGANUpscaler
 
 import config as CONFIG
 from utils import upload_file
@@ -167,20 +168,38 @@ plugins
 """
 @app.route("/api/remove_bg", methods=["POST"])
 def remove_bg():
-    email = request.form['email']
+    email = request.form["email"]
     image = request.files["image"]
 
     filename = image.filename
     image_pil = Image.open(image)
     image_removed_pil = RemoveBG()(image_pil)
-    upload_file(image_pil, filename, processed=False)
-    _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True)
+    upload_file(image_pil, filename, processed=False, plugin_name="removebg")
+    _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="removebg")
 
     user_pro = check_user_pro(email)
     if user_pro["effective"] == "0":
         image_high_url = ""
 
     return jsonify({"status": "1", "msg": "消除背景完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
+
+
+@app.route("/api/upscaler", methods=["POST"])
+def upscaler():
+    email = request.form["email"]
+    image = request.files["image"]
+
+    filename = image.filename
+    image_pil = Image.open(image)
+    image_removed_pil = RealESRGANUpscaler()(image_pil)
+    upload_file(image_pil, filename, processed=False, plugin_name="upscaler")
+    _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="upscaler")
+
+    user_pro = check_user_pro(email)
+    if user_pro["effective"] == "0":
+        image_high_url = ""
+
+    return jsonify({"status": "1", "msg": "放大完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
 
 if __name__ == "__main__":
