@@ -2,14 +2,23 @@ import os
 import random
 import string
 import paramiko
+
+import redis
+import numpy as np
 from PIL import Image
 
 import config as CONFIG
 
 
+redis_client = redis.StrictRedis(host=CONFIG.REDIS_HOST, port=CONFIG.REDIS_PORT, decode_responses=True)
+
 def generate_random_string(length=8):
     characters = string.ascii_letters + string.digits
     return "".join(random.choice(characters) for _ in range(length))
+
+def generate_random_integer(length=6):
+    random_number = random.randint(100000, 999999)
+    return str(random_number)
 
 
 def upload_file(image, filename, processed=False, plugin_name=""):
@@ -58,3 +67,35 @@ def upload_file(image, filename, processed=False, plugin_name=""):
             transport.close()
 
     return remote_origin_image_url, remote_processed_image_high_url, remote_processed_image_low_url
+
+
+def norm_img(np_img):
+    if len(np_img.shape) == 2:
+        np_img = np_img[:, :, np.newaxis]
+    np_img = np.transpose(np_img, (2, 0, 1))
+    np_img = np_img.astype("float32") / 255
+    return np_img
+
+
+def generate_token(email):
+    token = generate_random_string(24)
+    redis_client.set(token, email)
+    redis_client.expire(token, 86400)
+    return token
+
+
+def get_email_from_token(token):
+    email = redis_client.get(token)
+    return email
+
+
+def generate_validation_code(email):
+    code = generate_random_integer()
+    redis_client.set(email, code)
+    redis_client.expire(email, 300)
+    return code
+
+
+def get_validation_code_from_email(email):
+    validation_code = redis_client.get(email)
+    return validation_code

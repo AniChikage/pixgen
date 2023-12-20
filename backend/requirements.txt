@@ -4,7 +4,9 @@ flask==3.0.0
 flask-socketio==5.3.6
 simple-websocket==1.0.0
 flask_cors==4.0.0
+flasgger==0.9.7.1
 paramiko==3.3.1
 rembg==2.0.53
 realesrgan==0.3.0
-# alipay-sdk-python==3.3.398
+redis==5.0.1
+alipay-sdk-python==3.3.398
