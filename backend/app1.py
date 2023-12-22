@@ -847,4 +847,4 @@ def notify_order():
 
 
 if __name__ == "__main__":
-    app.run(host=CONFIG.HOST, port=CONFIG.PORT, debug=True)
+    app.run(host=CONFIG.HOST, port=7998, debug=True)
