@@ -1,4 +1,5 @@
 
+CUSTOM_DOMAIN = "pixgen.pro"
 HOST = "0.0.0.0"
 PORT = "8001"
 LOCAL_PATH="/home/brook/workspace/pixgen-images"

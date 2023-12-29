@@ -10,3 +10,5 @@ rembg==2.0.53
 realesrgan==0.3.0
 redis==5.0.1
 alipay-sdk-python==3.3.398
+insightface==0.7.3
+gfpgan==1.3.8

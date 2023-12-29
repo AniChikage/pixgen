@@ -614,7 +614,7 @@ def upscaler():
     return jsonify({"status": "1", "msg": "放大完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
 
-@app.route("/api/remove_object", methods=["POST"])
+@app.route("/api/plugin/remove_object", methods=["POST"])
 def remove_object():
     """
     消除物体
@@ -847,4 +847,4 @@ def notify_order():
 
 
 if __name__ == "__main__":
-    app.run(host=CONFIG.HOST, port=7998, debug=True)
+    app.run(host=CONFIG.HOST, port=CONFIG.PORT, debug=True)

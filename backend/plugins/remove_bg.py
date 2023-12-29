@@ -9,7 +9,7 @@ class RemoveBG():
         super().__init__()
 
         os.environ["U2NET_HOME"] = CONFIG.MODEL_PATH
-        self.session = new_session(model_name="u2net")
+        self.session = new_session(model_name="u2net_human_seg")
 
     def __call__(self, image):
         output = remove(image, session=self.session)
