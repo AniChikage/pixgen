@@ -30,6 +30,8 @@ from plugins.face_swap import FaceSwap
 
 import config as CONFIG
 from utils import (
+     resize_mask,
+     enrich_mask,
      upload_file, 
      generate_token, 
      get_email_from_token, 
@@ -107,6 +109,11 @@ alipay_client_config.app_private_key = os.environ.get("APP_PRIVATE_KEY")
 alipay_client_config.alipay_public_key = os.environ.get("ALIPAY_PUBLIC_KEY")
 
 client = DefaultAlipayClient(alipay_client_config=alipay_client_config, logger=logger)
+
+import warnings
+
+warnings.filterwarnings("ignore")
+
 
 
 """
@@ -690,9 +697,9 @@ def upscaler():
 
     filename = image.filename
     image_pil = Image.open(image)
-    image_removed_pil = RealESRGANUpscaler()(image_pil)
+    upsampled_pil = RealESRGANUpscaler()(image_pil)
     upload_file(image_pil, filename, processed=False, plugin_name="upscaler")
-    _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="upscaler")
+    _, image_high_url, image_low_url = upload_file(upsampled_pil, filename, processed=True, plugin_name="upscaler")
 
     if email is None:
         image_high_url = ""
@@ -763,16 +770,19 @@ def remove_object():
     filename = image.filename
     image_pil = Image.open(image)
     mask_pil = Image.open(mask)
+    mask_pil = resize_mask(image_pil, mask_pil)
+    mask_pil = enrich_mask(mask_pil)
+
     image_removed_pil = RemoveObject()(image_pil, mask_pil)
     upload_file(image_pil, filename, processed=False, plugin_name="remove_object")
     _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="remove_object")
 
-    if email is None:
-        image_high_url = ""
-    else:
-        user_pro = check_user_pro(email)
-        if user_pro["effective"] == "0":
-            image_high_url = ""
+    # if email is None:
+    #     image_high_url = ""
+    # else:
+    #     user_pro = check_user_pro(email)
+    #     if user_pro["effective"] == "0":
+    #         image_high_url = ""
 
     return jsonify({"status": "1", "msg": "消除物体完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
@@ -836,6 +846,10 @@ def swap_face():
     filename = source.filename
     source_pil = Image.open(source)
     target_pil = Image.open(target)
+    if source_pil.mode == "RGBA":
+        source_pil = source_pil.convert("RGB")
+    if target_pil.mode == "RGBA":
+        target_pil = target_pil.convert("RGB")
     swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
     upload_file(source_pil, filename, processed=False, plugin_name="face_swapped")
     _, image_high_url, image_low_url = upload_file(swapped_image_pil, filename, processed=True, plugin_name="face_swapped")
@@ -848,6 +862,55 @@ def swap_face():
             image_high_url = ""
 
     return jsonify({"status": "1", "msg": "换脸", "image_high_url": image_high_url, "image_low_url": image_low_url})
+
+
+"""
+UTILS
+"""
+@app.route("/api/utils/upload_image", methods=["POST"])
+def upload_image():
+    """
+    上传图片
+
+    ---
+    tags:
+      - UTILS
+    parameters:
+      - name: image
+        in: formData
+        type: file
+        required: true
+        description: 上传的图片
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1", "-1", "-2", "-3"]
+              description: 1 => 成功; -1 => 失败; -2 => 验证码过期; -3 => 验证码不正确
+            msg:
+              type: string
+              enum: ["注册成功", "该邮件已经注册", "验证码不正确", "验证码过期"]
+              description: 提示信息. status==1 => "注册成功"; status==-1 => "该邮件已经注册"; status==-2 => "验证码过期"; status==-3 => "验证码不正确"
+            token:
+              type: string
+              description: status==1 => 一个24位的字符串; status==-1/-2 => 空字符串
+    """
+    image = request.files["image"]
+
+    logging.info(image.filename)
+
+    filename = image.filename
+    image_pil = Image.open(image)
+
+    remote_origin_image_url, image_high_url, image_low_url = upload_file(image_pil, filename, processed=False, plugin_name="")
+
+    logging.info({"status": "1", "msg": "上传成功", "image_url": remote_origin_image_url})
+
+    return {"status": "1", "msg": "上传成功", "image_url": remote_origin_image_url}
 
 
 

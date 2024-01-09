@@ -2,6 +2,7 @@ import os
 import cv2
 import glob
 import torch
+import logging
 import numpy as np
 
 import insightface

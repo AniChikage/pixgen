@@ -25,6 +25,8 @@ from email.header import Header
 from plugins.remove_bg import RemoveBG
 from plugins.realesrgan import RealESRGANUpscaler
 from plugins.remove_object import RemoveObject
+from plugins.blur_background import BlurBackground
+from plugins.face_swap import FaceSwap
 
 import config as CONFIG
 from utils import (
@@ -51,7 +53,7 @@ app.config["SWAGGER"] = {
     "info": {
         "title": "PIXGEN API DOCUMENT",
         "version": "1.0",
-        "description": "PIXGEN相关API使用说明",
+        "description": "PIXGEN相关API使用说明 \n * 2023-12-29: 增加换脸功能 \n * 2023-12-26: token放入header",
     },
     "tags": [
         {"name": "User", "description": "用户"},
@@ -105,6 +107,10 @@ alipay_client_config.app_private_key = os.environ.get("APP_PRIVATE_KEY")
 alipay_client_config.alipay_public_key = os.environ.get("ALIPAY_PUBLIC_KEY")
 
 client = DefaultAlipayClient(alipay_client_config=alipay_client_config, logger=logger)
+
+import warnings
+
+warnings.filterwarnings("ignore")
 
 
 """
@@ -313,11 +319,11 @@ def user_profile():
     tags:
       - User
     parameters:
-      - name: token
-        in: formData
+      - name: Authorization
+        in: header
         type: string
         required: true
-        description: 用户token
+        description: Access token (Bearer token)
     responses:
       200:
         description: 响应
@@ -339,13 +345,17 @@ def user_profile():
               type: string
               description: 提示信息. status==1 => 时间字符串, e.g. "2023-01-01 00:00:00"; status==-1 => 空字符串; status==-10 => 空字符串
             effective_counts:
-              type: string
-              description: 提示信息. status==1 => 次数; status==-1 => 空字符串; status==-10 => 空字符串
+              type: int
+              description: 提示信息. status==1 => 次数; status==-1 => -1; status==-10 => -1
     """
-    token = request.form["token"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    else:
+        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": -1})
     email = get_email_from_token(token)
     if email is None:
-        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": ""})
+        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": -1})
     logging.info(f"{email} login...")
 
     conn = sqlite3.connect(CONFIG.DATABASE)
@@ -355,7 +365,7 @@ def user_profile():
     username, effective_timestamp, effective_counts = cursor.fetchone()
     conn.close()
     if username is None:
-        return jsonify({"status": "-1", "msg": "获取资料失败", "username": "", "effective_timestamp": "", "effective_counts": ""})
+        return jsonify({"status": "-1", "msg": "获取资料失败", "username": "", "effective_timestamp": "", "effective_counts": -1})
 
     return jsonify({"status": "1", "msg": "获取资料成功", "username": username, \
                     "effective_timestamp": effective_timestamp, \
@@ -392,11 +402,11 @@ def check_pro():
     tags:
       - User
     parameters:
-      - name: token
-        in: formData
+      - name: Authorization
+        in: header
         type: string
         required: true
-        description: 用户token
+        description: Access token (Bearer token)
     responses:
       200:
         description: 响应
@@ -415,7 +425,11 @@ def check_pro():
               type: string
               description: 是否有效. status==1 => "1"; status==-1 => "0"; status==-10 => "0"
     """
-    token = request.form["token"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    else:
+        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
     email = get_email_from_token(token)
     if email is None:
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
@@ -434,11 +448,11 @@ def update_pro():
     tags:
       - User
     parameters:
-      - name: token
-        in: formData
+      - name: Authorization
+        in: header
         type: string
         required: true
-        description: 用户token
+        description: Access token (Bearer token)
     responses:
       200:
         description: 响应
@@ -457,7 +471,11 @@ def update_pro():
               type: string
               description: 是否有效. status==1 => "1"; status==-1 => "0"; status==-10 => "0"
     """
-    token = request.form["token"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    else:
+        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
     email = get_email_from_token(token)
     if email is None:
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
@@ -495,11 +513,11 @@ def remove_bg():
     tags:
       - Plugin
     parameters:
-      - name: token
-        in: formData
+      - name: Authorization
+        in: header
         type: string
         required: false
-        description: 用户token
+        description: Access token (Bearer token)
       - name: image
         in: formData
         type: file
@@ -527,8 +545,9 @@ def remove_bg():
               description: 处理后的低分辨率图片url. status==1 => url
     """
     image = request.files["image"]
-    if "token" in request.form:
-        token = request.form["token"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
         email = get_email_from_token(token)
     else:
         email = None
@@ -548,6 +567,80 @@ def remove_bg():
 
     return jsonify({"status": "1", "msg": "消除背景完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
+"""
+plugins
+"""
+@app.route("/api/plugin/blur_bg", methods=["POST"])
+def blur_bg():
+    """
+    模糊背景
+
+    ---
+    tags:
+      - Plugin
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: false
+        description: Access token (Bearer token)
+      - name: image
+        in: formData
+        type: file
+        required: true
+        description: 图片文件
+      - name: degree
+        in: formData
+        type: string
+        required: false
+        description: 模糊度
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1"]
+              description: 1 => 成功
+            msg:
+              type: string
+              enum: ["模糊背景完成"]
+              description: 提示信息. status==1 => "模糊背景完成"
+            image_high_url:
+              type: string
+              description: 处理后的原始分辨率图片url. status==1 => url
+            image_low_url:
+              type: string
+              description: 处理后的低分辨率图片url. status==1 => url
+    """
+    image = request.files["image"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        email = get_email_from_token(token)
+    else:
+        email = None
+    degree = 10
+    if "degree" in request.form:
+        degree = request.form["degree"]
+
+    filename = image.filename
+    image_pil = Image.open(image)
+    image_removed_pil = BlurBackground()(image_pil, degree)
+    upload_file(image_pil, filename, processed=False, plugin_name="removebg")
+    _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="removebg")
+
+    if email is None:
+        image_high_url = ""
+    else:
+        user_pro = check_user_pro(email)
+        if user_pro["effective"] == "0":
+            image_high_url = ""
+
+    return jsonify({"status": "1", "msg": "模糊背景完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
+
 
 @app.route("/api/plugin/upscaler", methods=["POST"])
 def upscaler():
@@ -558,11 +651,11 @@ def upscaler():
     tags:
       - Plugin
     parameters:
-      - name: token
-        in: formData
+      - name: Authorization
+        in: header
         type: string
         required: false
-        description: 用户token
+        description: Access token (Bearer token)
       - name: image
         in: formData
         type: file
@@ -590,8 +683,9 @@ def upscaler():
               description: 处理后的低分辨率图片url. status==1 => url
     """
     image = request.files["image"]
-    if "token" in request.form:
-        token = request.form["token"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
         email = get_email_from_token(token)
     else:
         email = None
@@ -623,11 +717,11 @@ def remove_object():
     tags:
       - Plugin
     parameters:
-      - name: token
-        in: formData
+      - name: Authorization
+        in: header
         type: string
         required: false
-        description: 用户token
+        description: Access token (Bearer token)
       - name: image
         in: formData
         type: file
@@ -661,8 +755,9 @@ def remove_object():
     """
     image = request.files["image"]
     mask = request.files["mask"]
-    if "token" in request.form:
-        token = request.form["token"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
         email = get_email_from_token(token)
     else:
         email = None
@@ -686,6 +781,131 @@ def remove_object():
     return jsonify({"status": "1", "msg": "消除物体完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
 
+@app.route("/api/plugin/swap_face", methods=["POST"])
+def swap_face():
+    """
+    换脸
+
+    ---
+    tags:
+      - Plugin
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: false
+        description: Access token (Bearer token)
+      - name: source
+        in: formData
+        type: file
+        required: true
+        description: 源人脸图片
+      - name: target
+        in: formData
+        type: file
+        required: true
+        description: 待被替换人脸图片
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1"]
+              description: 1 => 成功
+            msg:
+              type: string
+              enum: ["换脸完成"]
+              description: 提示信息. status==1 => "换脸完成"
+            image_high_url:
+              type: string
+              description: 处理后的原始分辨率图片url. status==1 => url
+            image_low_url:
+              type: string
+              description: 处理后的低分辨率图片url. status==1 => url
+    """
+    source = request.files["source"]
+    target = request.files["target"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        email = get_email_from_token(token)
+    else:
+        email = None
+
+    logging.info(f"{email}")
+
+    filename = source.filename
+    source_pil = Image.open(source)
+    target_pil = Image.open(target)
+    if source_pil.mode == "RGBA":
+        source_pil = source_pil.convert("RGB")
+    if target_pil.mode == "RGBA":
+        target_pil = target_pil.convert("RGB")
+    swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
+    upload_file(source_pil, filename, processed=False, plugin_name="face_swapped")
+    _, image_high_url, image_low_url = upload_file(swapped_image_pil, filename, processed=True, plugin_name="face_swapped")
+
+    if email is None:
+        image_high_url = ""
+    else:
+        user_pro = check_user_pro(email)
+        if user_pro["effective"] == "0":
+            image_high_url = ""
+
+    return jsonify({"status": "1", "msg": "换脸", "image_high_url": image_high_url, "image_low_url": image_low_url})
+
+
+"""
+UTILS
+"""
+@app.route("/api/utils/upload_image", methods=["POST"])
+def upload_image():
+    """
+    上传图片
+
+    ---
+    tags:
+      - UTILS
+    parameters:
+      - name: image
+        in: formData
+        type: file
+        required: true
+        description: 上传的图片
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1", "-1", "-2", "-3"]
+              description: 1 => 成功; -1 => 失败; -2 => 验证码过期; -3 => 验证码不正确
+            msg:
+              type: string
+              enum: ["注册成功", "该邮件已经注册", "验证码不正确", "验证码过期"]
+              description: 提示信息. status==1 => "注册成功"; status==-1 => "该邮件已经注册"; status==-2 => "验证码过期"; status==-3 => "验证码不正确"
+            token:
+              type: string
+              description: status==1 => 一个24位的字符串; status==-1/-2 => 空字符串
+    """
+    image = request.files["image"]
+
+    logging.info(image.filename)
+
+    filename = image.filename
+    image_pil = Image.open(image)
+
+    remote_origin_image_url, image_high_url, image_low_url = upload_file(image_pil, filename, processed=False, plugin_name="")
+
+    return jsonify({"status": "1", "msg": "上传成功", "image_url": remote_origin_image_url})
+
+
+
 """
 order
 """
@@ -698,11 +918,11 @@ def create_order():
     tags:
       - Order
     parameters:
-      - name: token
-        in: formData
+      - name: Authorization
+        in: header
         type: string
         required: true
-        description: 用户token
+        description: Access token (Bearer token)
       - name: amount
         in: formData
         type: string
@@ -730,7 +950,11 @@ def create_order():
               description: 处理后的低分辨率图片url. status==1 => url
     """
     amount = request.form["amount"]
-    token = request.form["token"]
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    else:
+        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
     email = get_email_from_token(token)
     if email is None:
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
@@ -847,4 +1071,4 @@ def notify_order():
 
 
 if __name__ == "__main__":
-    app.run(host=CONFIG.HOST, port=CONFIG.PORT, debug=True)
+    app.run(host=CONFIG.HOST, port=8003, debug=True)

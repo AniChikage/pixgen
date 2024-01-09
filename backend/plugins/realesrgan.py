@@ -69,6 +69,7 @@ class RealESRGANUpscaler():
             device="cpu",
         )
 
+
     def __call__(self, image):
         image_rgb_np = np.array(image)
         upsampled = self.model.enhance(image_rgb_np, outscale=2)[0]

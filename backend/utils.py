@@ -2,6 +2,7 @@ import os
 import sys
 import random
 import string
+import logging
 import paramiko
 
 import cv2
@@ -35,6 +36,7 @@ def upload_file(image, filename, processed=False, plugin_name=""):
         local_file = os.path.join(CONFIG.LOCAL_PATH, filename)
         remote_file = os.path.join(CONFIG.REMOTE_PATH, filename)
         remote_origin_image_url = f"http://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{filename}"
+        logging.info(f"remote_origin_image_url")
         image.save(local_file)
     else:
         # save original-size image
@@ -192,10 +194,29 @@ def get_cache_path_by_url(url, model_dir=None):
     return cached_file
 
 
-def download_model(url, model_dir=None):
+def download_model(url):
+    model_dir = CONFIG.MODEL_PATH
     cached_file = get_cache_path_by_url(url, model_dir)
     if not os.path.exists(cached_file):
         sys.stderr.write('Downloading: "{}" to {}\n'.format(url, cached_file))
         hash_prefix = None
         download_url_to_file(url, cached_file, hash_prefix, progress=True)
     return cached_file
+
+
+def resize_mask(image, mask):
+    image_width, image_height = image.size
+    mask_width, mask_height = mask.size
+
+    if image_width == mask_width and image_height == mask_height:
+        return mask
+
+    return mask.resize((image_width, image_height))
+
+
+def enrich_mask(mask):
+    mask_gray = mask.convert("L")
+    mask_np = np.array(mask_gray)
+    mask_binary = np.where(mask_np > 20, 255, 0).astype(np.uint8)
+    mask = Image.fromarray(mask_binary)
+    return mask

@@ -22,7 +22,7 @@ class LaMa:
                     f"lama torchscript model not found: {model_path}"
                 )
         else:
-            model_path = download_model(LAMA_MODEL_URL, CONFIG.MODEL_PATH)
+            model_path = download_model(LAMA_MODEL_URL)
 
         self.model = torch.jit.load(model_path, map_location=self.device)
         self.model.eval()
