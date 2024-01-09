@@ -1,0 +1,23 @@
+.canvas-container {
+}
+
+canvas {
+  cursor: none; /* 设置为 none 隐藏默认鼠标样式 */
+}
+
+canvas::before {
+  content: '';
+  position: relative;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px; /* 调整正方形的宽度 */
+  height: 50px; /* 调整正方形的高度 */
+  background-color: rgba(0, 0, 0, 0.5); /* 设置半透明正方形的颜色和透明度 */
+  border-radius: 5px; /* 调整正方形的圆角半径 */
+  pointer-events: none; /* 防止伪元素干扰鼠标事件 */
+}
+
+canvas:hover::before {
+  display: block;
+}
