@@ -1,9 +1,9 @@
 
-import Login from "@/components/auth/ResponseLogin";
+import Register from "@/components/auth/Register";
 
 function LoginPage() {
     return (
-        <Login />
+        <Register />
     )
 }
 

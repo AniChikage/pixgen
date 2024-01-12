@@ -28,12 +28,16 @@ from plugins.remove_object import RemoveObject
 from plugins.blur_background import BlurBackground
 from plugins.face_swap import FaceSwap
 
+# wx
+from helper.wx import WXObject 
+
 import config as CONFIG
 from utils import (
      resize_mask,
      enrich_mask,
      upload_file, 
      generate_token, 
+     filter_wx_code,
      get_email_from_token, 
      generate_random_string, 
      generate_validation_code,
@@ -309,6 +313,74 @@ def login_user():
         return jsonify({"status": "-1", "msg": "邮箱或密码错误", "username": "", "token": ""})
 
     token = generate_token(email)
+
+    return jsonify({"status": "1", "msg": "登陆成功", "username": username, "token": token})
+
+
+@app.route("/api/user/wx_login_user", methods=["POST"])
+def wx_login_user():
+    """
+    微信用户登录
+
+    ---
+    tags:
+      - User
+    parameters:
+      - name: code
+        in: formData
+        type: string
+        required: true
+        description: 请求的code
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1", "-1"]
+              description: 1 => 成功; -1 => 失败
+            msg:
+              type: string
+              enum: ["登陆成功", "邮箱或密码错误"]
+              description: 提示信息. status==1 => "登陆成功"; status==-1 => "邮箱或密码错误"
+            token:
+              type: string
+              description: status==1 => 一个24位的字符串; status==-1 => 空字符串
+    """
+    try:
+      code = request.form["code"]
+    except:
+      return {"status": "-1", "msg": "缺少参数", "username": "", "token": ""}
+
+    logging.info(f"wx user login...{code}")
+
+    # get wx username
+    wxObject = WXObject(code)
+    unionid, username = wxObject.getUserInfo()
+
+    # check if user registered
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
+    query = f"SELECT username FROM user WHERE email = '{unionid}'"
+    cursor.execute(query)
+    result = cursor.fetchone()
+    conn.close()
+    if result:
+      logging.info("user is already registered")
+    else:
+      conn = sqlite3.connect(CONFIG.DATABASE)
+      cursor = conn.cursor()
+      created_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      query = f"INSERT INTO user (email, username, password, created_timestamp, \
+                      effective_timestamp, effective_counts) VALUES \
+                    ('{unionid}', '{username}', '', '{created_time}', '{created_time}', 0)"
+      cursor.execute(query)
+      conn.commit()
+      conn.close()
+    
+    token = generate_token(unionid)
 
     return jsonify({"status": "1", "msg": "登陆成功", "username": username, "token": token})
 
@@ -770,6 +842,11 @@ def remove_object():
     filename = image.filename
     image_pil = Image.open(image)
     mask_pil = Image.open(mask)
+
+    image_pil.save("image.png")
+    mask_pil.save("mask.png")
+
+    image_pil = image_pil.convert("RGB")
     mask_pil = resize_mask(image_pil, mask_pil)
     mask_pil = enrich_mask(mask_pil)
 
@@ -918,6 +995,117 @@ def upload_image():
 """
 order
 """
+@app.route("/api/order/list_orders", methods=["POST"])
+def list_orders():
+    """
+    获取订单
+
+    ---
+    tags:
+      - Order
+    parameters:
+      - name: Authorization
+        in: header
+        type: string
+        required: true
+        description: Access token (Bearer token)
+      - name: page
+        in: formData
+        type: string
+        required: true
+        description: 页
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1"]
+              description: 1 => 成功
+            msg:
+              type: string
+              enum: ["图片放大完成"]
+              description: 提示信息. status==1 => "图片放大完成"
+            orders:
+              type: array
+              description: 返回的orders数组
+              items:
+                type: object
+                properties:
+                  out_trade_no:
+                    type: string
+                    description: 订单号
+                  total_amount:
+                    type: string
+                    description: 交易金额
+                  trade_no:
+                    type: string
+                    description: 交易号
+                  create_time:
+                    type: string
+                    description: 支付时间
+    """
+    try:
+        page = request.form["page"]
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+        else:
+            return jsonify({"status": "-1", "msg": "登录有效期已过，请重新登陆", "orders": [], "has_next": "no"})
+        email = get_email_from_token(token)
+        if email is None:
+            return jsonify({"status": "-1", "msg": "登录有效期已过，请重新登陆", "orders": [], "has_next": "no"})
+    except:
+        return jsonify({"status": "-1", "msg": "请检查参数", "orders": [], "has_next": "no"})
+
+    logging.info(f"{page}")
+
+    page_size = 5
+    offset = (int(page) - 1) * page_size
+
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
+    # get all order number
+    query = f"SELECT out_trade_no, trade_no, total_amount, gmt_payment FROM orders WHERE email = '{email}' and trade_status = 'TRADE_SUCCESS'"
+    cursor.execute(query)
+    result = cursor.fetchall()
+    record_num = len(result)
+    # get page record
+    query = f"SELECT out_trade_no, trade_no, total_amount, gmt_payment FROM orders WHERE email = '{email}' and trade_status = 'TRADE_SUCCESS' order by gmt_payment desc limit {page_size} offset {offset}"
+    cursor.execute(query)
+    result = cursor.fetchall()
+
+    if not result:
+        return  jsonify({"status": "1", "msg": "获取订单成功", "orders": [], "has_next": "no"})
+
+    orders = []
+    subscription = {
+      "0.01": "试用",
+      "0.02": "灵活",
+      "0.03": "月付"
+    }
+    for row in result:
+        order_item = {}
+        out_trade_no, trade_no, total_amount, gmt_payment = row
+        order_item["out_trade_no"] = out_trade_no
+        order_item["trade_no"] = trade_no
+        order_item["total_amount"] = total_amount
+        order_item["gmt_payment"] = gmt_payment
+        order_item["subscription"] = subscription[total_amount]
+        orders.append(order_item)
+
+    cursor.close()
+    conn.close()
+
+    if int(page) * page_size < record_num:
+        return jsonify({"status": "1", "msg": "获取订单成功", "orders": orders, "has_next": "yes"})
+    
+    return jsonify({"status": "1", "msg": "获取订单成功", "orders": orders, "has_next": "no"})
+         
+
+
 @app.route("/api/order/create_order", methods=["POST"])
 def create_order():
     """
@@ -981,7 +1169,7 @@ def create_order():
     # return_url = "https://workwithfun.site"
     orderRequest = AlipayTradePagePayRequest(biz_model=model)
     orderRequest.return_url = "https://pixgen.pro"
-    orderRequest.notify_url = f"http://pixgen.pro:{CONFIG.PORT}/api/order/notify_order"
+    orderRequest.notify_url = f"https://pixgen.pro:{CONFIG.HTTPS_PORT}/api/order/notify_order"
     response = client.page_execute(orderRequest, http_method="GET")
     logging.info("alipay.trade.page.pay response:" + response)
 

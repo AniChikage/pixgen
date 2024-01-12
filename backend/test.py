@@ -10,3 +10,11 @@ mask_binary = np.where(mask_np > 20, 255, 0).astype(np.uint8)
 mask = Image.fromarray(mask_binary)
 
 mask.save("mask_.png")
+
+
+
+image = Image.open("image.png")
+mask = Image.open("mask.png")
+image = image.convert("RGB")
+print(image.getbands())
+print(mask.getbands())

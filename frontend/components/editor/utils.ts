@@ -10,17 +10,6 @@ export function dataURItoBlob(dataURI: string) {
   return new Blob([new Uint8Array(array)], { type: mime })
 }
 
-// const dataURItoBlob = (dataURI: string) => {
-//   const bytes =
-//     dataURI.split(',')[0].indexOf('base64') >= 0
-//       ? atob(dataURI.split(',')[1])
-//       : unescape(dataURI.split(',')[1])
-//   const mime = dataURI.split(',')[0].split(':')[1].split(';')[0]
-//   const max = bytes.length
-//   const ia = new Uint8Array(max)
-//   for (var i = 0; i < max; i++) ia[i] = bytes.charCodeAt(i)
-//   return new Blob([ia], { type: mime })
-// }
 
 export function downloadImage(uri: string, name: string) {
   const link = document.createElement('a')
@@ -64,7 +53,7 @@ export function useImage(
 
   // 调整图像分辨率的函数
   const adjustResolution = useCallback(
-    (width, height) => {
+    (width: number, height: number) => {
       const canvas = document.createElement('canvas')
       const context = canvas.getContext('2d')!
       canvas.width = width

@@ -1,17 +1,10 @@
 "use client"
 import { useRouter } from 'next/navigation';
-import { ClipLoader } from 'react-spinners';
 import React, { useState, useRef, useEffect } from 'react';
 
 import { getImage, erase, checkPro } from '@/api/apis';
 
-import LoadingSpinner from '@/components/fileSelect/LoadingSpinner';
-import ClipLoaderComponent from '@/components/loading/ClipLoader';
 import { ArrowLeftIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
-// import './EditorErase.css'
-// import './Cursor.css';
-
-// import BackIcon from '@/public/editor/back.svg';
 
 const Editor = () => {
     const router = useRouter();
@@ -23,7 +16,7 @@ const Editor = () => {
     const [image, setImage] = useState<File | null>(null);
     const [lastImage, setLastImage] = useState<File | null>(null);
     const [mask, setMask] = useState<File | null>(null);
-    const [lines, setLines] = useState([]);
+    const [lines, setLines] = useState<string[]>([]);
     const [originalImage, setOriginalImage] = useState<File | null>(null);
     const [lineWidth, setLineWidth] = useState(25); 
     const [lineColor, setLineColor] = useState('#00AA00'); 
@@ -36,12 +29,12 @@ const Editor = () => {
     const [processing, setProcessing] = useState(false);
     const [sliderValue, setSliderValue] = useState(25);
     const [recover, setRecover] = useState(false);
-    const [imageUrlArray, setImageUrlArray] = useState([]);
-    const [imageHighUrlArray, setImageHighUrlArray] = useState([]);
-    const [imageLowUrlArray, setImageLowUrlArray] = useState([]);
+    const [imageUrlArray, setImageUrlArray] = useState<string[]>([]);
+    const [imageHighUrlArray, setImageHighUrlArray] = useState<string[]>([]);
+    const [imageLowUrlArray, setImageLowUrlArray] = useState<string[]>([]);
     const [latestImageUrl, setLatestImageUrl] = useState(null);
-    const [latestImageHighUrl, setLatestImageHighUrl] = useState(null);
-    const [latestImageLowUrl, setLatestImageLowUrl] = useState(null);
+    const [latestImageHighUrl, setLatestImageHighUrl] = useState<string>("");
+    const [latestImageLowUrl, setLatestImageLowUrl] = useState<string>("");
     const [pro, setPro] = useState(false);
 
     useEffect(() => {
@@ -53,7 +46,7 @@ const Editor = () => {
       if (processing) {
         const interval = setInterval(() => {
           setOpacity((prevOpacity) => (prevOpacity === 1 ? 0.3 : 1));
-        }, 500);
+        }, 400);
         return () => clearInterval(interval);
       } else {
         setOpacity(1);
@@ -81,7 +74,7 @@ const Editor = () => {
 
         renderCanvas(image_url, image_low_url);
       }
-    }, [recover]);
+    }, [recover, imageHighUrlArray, imageLowUrlArray]);
 
 
     useEffect(() => {
@@ -109,32 +102,15 @@ const Editor = () => {
       setIsMouseOver(true);
     };
 
-    const handleMouseLeave = (e) => {
+    const handleMouseLeave = () => {
       setIsMouseOver(false);
       const drawCanvas = drawCanvasRef.current;
       if (!drawCanvas) return;
       const ctx = drawCanvas.getContext('2d');
-      const { offsetX, offsetY } = e.nativeEvent;
   
       if (!ctx) return;
       ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height); 
       ctx.stroke();
-    };
-
-    const handleMouseMove = (event: any) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      if (isMouseOver) {
-        const { offsetX, offsetY } = event.nativeEvent;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.beginPath();
-        ctx.arc(offsetX, offsetY, 20, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-        ctx.fill();
-        ctx.stroke();
-      }
     };
 
     const renderCanvas = (image_url: any, image_low_url?: any) => {
@@ -156,13 +132,9 @@ const Editor = () => {
       drawCanvas.addEventListener('mouseenter', handleMouseEnter);
       drawCanvas.addEventListener('mouseleave', handleMouseLeave);
 
-      // setLatestImageUrl(image_url);
       setLatestImageHighUrl(image_url);
       setLatestImageLowUrl(image_low_url);
       if (!recover) {
-        // const newImageUrlArray = [...imageUrlArray, image_url];
-        // setImageUrlArray(newImageUrlArray);
-
         const newImageHighUrlArray = [...imageHighUrlArray, image_url];
         setImageHighUrlArray(newImageHighUrlArray);
         if (image_low_url) {
@@ -172,11 +144,14 @@ const Editor = () => {
       } else {
         setRecover(false);
       }
-      // console.log(imageUrlArray);
 
       if (image_url && ctx && drawCtx && maskCtx) {
           const loadImage = async () => {
               const blob = await getImage(image_url);
+              if (!blob) {
+                console.error("blob is empty");
+                return;
+              }
               const lastImageFile = new File([blob], 'image.png', { type: 'image/png' });
               setLastImage(lastImageFile);
 
@@ -225,7 +200,7 @@ const Editor = () => {
       drawCanvas.removeEventListener('mouseleave', handleMouseLeave);
     }
 
-    const startDrawing = (e) => {
+    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
         const drawCanvas = drawCanvasRef.current;
         if (!drawCanvas) return;
         const ctx = drawCanvas.getContext('2d');
@@ -238,7 +213,7 @@ const Editor = () => {
         setDrawed(true);
     };
 
-  const draw = (e) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (drawing) {
       const drawCanvas = drawCanvasRef.current;
       if (!drawCanvas) return;
@@ -285,7 +260,7 @@ const Editor = () => {
   const endDrawing = () => {
     const drawCanvas = drawCanvasRef.current;
     const maskCanvas = maskCanvasRef.current;
-    if (!maskCanvas || !drawCanvas) return;
+    if (!maskCanvas || !drawCanvas || !drawCanvasRef || !maskCanvasRef) return;
     
     const maskCtx = maskCanvas.getContext('2d');
     
@@ -301,10 +276,12 @@ const Editor = () => {
     if (!drawCtx) return;
     drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
     setDrawing(false);
-    setLines([...lines, drawCanvasRef.current.toDataURL()]);
+    if (drawCanvasRef.current){
+      setLines([...lines, drawCanvasRef.current.toDataURL()]);
+    }
   };
 
-  const dataURLtoBlob = (dataURL) => {
+  const dataURLtoBlob = (dataURL: string) => {
     const byteString = atob(dataURL.split(',')[1]);
     const arrayBuffer = new ArrayBuffer(byteString.length);
     const uint8Array = new Uint8Array(arrayBuffer);
@@ -330,20 +307,18 @@ const Editor = () => {
     router.push('/erase');
   }
 
-  const renderNew = async(image_high_url: any) => {
-    console.log(image_high_url);
-  }
-
   const eraseObject = async(event: { preventDefault: () => void; }) => {
     const canvas = drawCanvasRef.current;
     if (lastImage && lines && canvas){
       setProcessing(true);
       const maskFile =  getMaskFile();
-      const response = await erase(lastImage, maskFile);
-      const { status, image_high_url, image_low_url } = response;
-      if (status === "1") {
-        renderCanvas(image_high_url, image_low_url);
-        setDrawed(false);
+      if (maskFile) {
+        const response = await erase(lastImage, maskFile);
+        const { status, image_high_url, image_low_url } = response;
+        if (status === "1") {
+          renderCanvas(image_high_url, image_low_url);
+          setDrawed(false);
+        }
       }
     }
   }
@@ -381,7 +356,10 @@ const Editor = () => {
         })
         .catch(error => console.error('Error downloading image:', error));
       } else {
-        document.getElementById('my_modal_1').showModal();
+        const pro_modal = document.getElementById('pro_modal') as HTMLDialogElement | null;
+        if (pro_modal) {
+          pro_modal.showModal();
+        }
       }
       
     } catch (error) {
@@ -465,7 +443,7 @@ const Editor = () => {
                     >
                     下载高清图片
                     </button>
-                    <dialog id="my_modal_1" className="modal">
+                    <dialog id="pro_modal" className="modal">
                       <div className="modal-box">
                         <h3 className="font-bold text-lg">付费功能</h3>
                         <p className="py-4">下载高清图片是付费功能，请查看付费计划</p>
@@ -484,9 +462,10 @@ const Editor = () => {
             </nav>
         </header>
 
-        <div className='w-full h-screen flex justify-center items-center bg-black'>
-          
-          <div style={{ position: 'relative', cursor: 'none' , opacity: opacity, transition: 'opacity 0.5s ease-in-out', }}>
+        <div className='w-full h-screen flex justify-center items-center bg-black'
+          style={{ background: "radial-gradient(circle, #6F6F6F 1px, transparent 1px)", backgroundSize: "30px 30px" }}
+        >
+          <div className={`relative cursor-none transition-opacity duration-200 ease-in-out`} style={{opacity: opacity}}>
               <canvas
                   ref={canvasRef}
                   width={900}

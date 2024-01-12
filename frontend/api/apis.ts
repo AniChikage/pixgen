@@ -26,6 +26,56 @@ export async function loginUser(
     }
 }
 
+export async function sendValidationCode(
+  email: string
+) {
+  const fd = new FormData()
+  fd.append('email', email)
+
+  try {
+    const res = await fetch(`${API_ENDPOINT}/api/user/get_validation_code`, {
+      method: 'POST',
+      body: fd,
+      mode: 'cors',
+    })
+    console.log(res)
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (error) {
+    throw new Error(`login failed: ${error}`)
+  }
+}
+
+export async function registerUser(
+  email: string,
+  username: string,
+  password: string,
+  validation_code: string
+) {
+  const fd = new FormData()
+  fd.append('email', email)
+  fd.append('username', username)
+  fd.append('password', password)
+  fd.append('validation_code', validation_code)
+
+  try {
+    const res = await fetch(`${API_ENDPOINT}/api/user/register_user`, {
+      method: 'POST',
+      body: fd,
+      mode: 'cors',
+    })
+    console.log(res)
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (error) {
+    throw new Error(`login failed: ${error}`)
+  }
+}
+
 
 export async function userProfile(
   token: string,

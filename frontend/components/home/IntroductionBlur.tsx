@@ -1,5 +1,4 @@
-import Image from 'next/image'
-import EraseGIF from '../../public/home/erase.gif'
+import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider';
 
 export default function Introdcution () {
     return (
@@ -55,10 +54,13 @@ export default function Introdcution () {
             </div>
             </div>
 
-            <div className="lg:col-span-4 lg:mt-20">
-            <Image className="w-full rounded-xl" src={EraseGIF.src} width={300} height={100} alt="" />
+            <div className="lg:col-span-4 lg:mt-20 ">
+                <ReactCompareSlider className='w-full h-96 rounded-xl' changePositionOnHover={true}
+                itemOne={<ReactCompareSliderImage src="https://pixgen.pro:8010/images/blur_diff_1.jpg" alt="Image one" />}
+                itemTwo={<ReactCompareSliderImage src="https://pixgen.pro:8010/images/blur_diffd_1.jpg" alt="Image two" />}
+                />
             </div>
-        </div>
+            </div>
         </div>
     )
 }

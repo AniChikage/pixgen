@@ -1,24 +1,17 @@
 "use client"
 import { useRouter } from 'next/navigation';
-import { ClipLoader } from 'react-spinners';
 import React, { useState, useRef, useEffect } from 'react';
 
 import { getImage, upscaler, checkPro } from '@/api/apis';
 
-import LoadingSpinner from '@/components/fileSelect/LoadingSpinner';
-import ClipLoaderComponent from '@/components/loading/ClipLoader';
 import { ArrowLeftIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
-// import './EditorErase.css'
-// import './Cursor.css';
-
-// import BackIcon from '@/public/editor/back.svg';
 
 const Editor = () => {
     const router = useRouter();
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const [token, setToken] = useState<String | null>(null);
+    const [token, setToken] = useState<string>("");
     const [drawing, setDrawing] = useState(false);
     const [upscaled, setUpscaled] = useState(false);
     const [image, setImage] = useState<File | null>(null);
@@ -37,12 +30,12 @@ const Editor = () => {
     const [processing, setProcessing] = useState(false);
     const [sliderValue, setSliderValue] = useState(25);
     const [recover, setRecover] = useState(false);
-    const [imageUrlArray, setImageUrlArray] = useState([]);
-    const [imageHighUrlArray, setImageHighUrlArray] = useState([]);
-    const [imageLowUrlArray, setImageLowUrlArray] = useState([]);
-    const [latestImageUrl, setLatestImageUrl] = useState(null);
-    const [latestImageHighUrl, setLatestImageHighUrl] = useState(null);
-    const [latestImageLowUrl, setLatestImageLowUrl] = useState(null);
+    const [imageUrlArray, setImageUrlArray] = useState<string[]>([]);
+    const [imageHighUrlArray, setImageHighUrlArray] = useState<string[]>([]);
+    const [imageLowUrlArray, setImageLowUrlArray] = useState<string[]>([]);
+    const [latestImageUrl, setLatestImageUrl] = useState<string>("");
+    const [latestImageHighUrl, setLatestImageHighUrl] = useState<string>("");
+    const [latestImageLowUrl, setLatestImageLowUrl] = useState<string>("");
     const [pro, setPro] = useState(false);
 
     useEffect(() => {
@@ -52,14 +45,16 @@ const Editor = () => {
 
     useEffect(() => {
       const local_token = localStorage.getItem('token');
-      setToken(local_token);
+      if (local_token) {
+        setToken(local_token);
+      }
     }, []);
 
     useEffect(() => {
       if (processing) {
         const interval = setInterval(() => {
           setOpacity((prevOpacity) => (prevOpacity === 1 ? 0.3 : 1));
-        }, 300);
+        }, 400);
         return () => clearInterval(interval);
       } else {
         setOpacity(1);
@@ -75,19 +70,22 @@ const Editor = () => {
     }, [imageLowUrlArray]);
 
     useEffect(() => {
-      console.log(recover);
-      if (recover && imageHighUrlArray.length > 1) {
-        const newImageHighUrlArray = imageHighUrlArray.slice(0, -1);
-        const image_url = newImageHighUrlArray[newImageHighUrlArray.length - 1];
-        setImageHighUrlArray(newImageHighUrlArray);
+      const handleRenderCanvas = () => {
+        console.log(recover);
+        if (recover && imageHighUrlArray.length > 1) {
+          const newImageHighUrlArray = imageHighUrlArray.slice(0, -1);
+          const image_url = newImageHighUrlArray[newImageHighUrlArray.length - 1];
+          setImageHighUrlArray(newImageHighUrlArray);
 
-        const newImageLowUrlArray = imageLowUrlArray.slice(0, -1);
-        const image_low_url = newImageLowUrlArray[newImageLowUrlArray.length - 1];
-        setImageLowUrlArray(newImageLowUrlArray);
+          const newImageLowUrlArray = imageLowUrlArray.slice(0, -1);
+          const image_low_url = newImageLowUrlArray[newImageLowUrlArray.length - 1];
+          setImageLowUrlArray(newImageLowUrlArray);
 
-        renderCanvas(image_url, image_low_url);
-      }
-    }, [recover]);
+          renderCanvas(image_url, image_low_url);
+        }
+      };
+      handleRenderCanvas();
+    }, [recover, imageHighUrlArray, imageLowUrlArray]);
 
 
     useEffect(() => {
@@ -132,10 +130,18 @@ const Editor = () => {
       if (image_low_url) {
           const loadImage = async () => {
               const blob = await getImage(image_low_url);
+              if (!blob) {
+                console.error('blob is null');
+                return;
+              }
               const lastImageFile = new File([blob], 'image.png', { type: 'image/png' });
               setLastImage(lastImageFile);
 
               const img = new Image();
+              if (!blob) {
+                console.error("blob is null");
+                return;
+              }
               img.src = URL.createObjectURL(blob);;
               img.onload = () => {
                   const maxCanvasWidth = window.innerWidth * (2 / 3);
@@ -179,11 +185,13 @@ const Editor = () => {
     if (canvas){
       setProcessing(true);
       console.log("dddd");
-      const response = await upscaler(token, lastImage);
-      const { status, image_high_url, image_low_url } = response;
-      if (status === "1") {
-        renderCanvas(image_high_url, image_low_url);
-        setUpscaled(false);
+      if (lastImage) {
+        const response = await upscaler(token, lastImage);
+        const { status, image_high_url, image_low_url } = response;
+        if (status === "1") {
+          renderCanvas(image_high_url, image_low_url);
+          setUpscaled(false);
+        }
       }
     }
   }
@@ -210,7 +218,10 @@ const Editor = () => {
         })
         .catch(error => console.error('Error downloading image:', error));
       } else {
-        document.getElementById('my_modal_1').showModal();
+        const pro_modal = document.getElementById('pro_modal') as HTMLDialogElement | null;
+        if (pro_modal) {
+          pro_modal.showModal();
+        }
       }
       
     } catch (error) {
@@ -240,7 +251,9 @@ const Editor = () => {
   }
 
   return (
-    <div className='w-full h-screen flex justify-center items-start bg-black'>
+    <div className='w-full h-screen flex justify-center items-start' 
+        style={{ background: "linear-gradient(to right, #000 1px, transparent 1px), linear-gradient(to bottom, #000 1px, transparent 1px)", backgroundSize: "20px 20px" }}
+    >
         <header className="fixed flex items-center flex-wrap h-14 sm:justify-start sm:flex-nowrap z-50 w-full bg-black text-sm py-3 sm:py-0 light:bg-gray-800 ">
             <nav className="relative w-full pr-4 sm:flex sm:items-center sm:justify-between" aria-label="Global">
                 <div id="navbar-collapse-with-animation" className="hs-collapse hidden overflow-hidden transition-all duration-300 w-40 grow sm:block">
@@ -274,7 +287,7 @@ const Editor = () => {
                     >
                     下载高清图片
                     </button>
-                    <dialog id="my_modal_1" className="modal">
+                    <dialog id="pro_modal" className="modal">
                       <div className="modal-box">
                         <h3 className="font-bold text-lg">付费功能</h3>
                         <p className="py-4">下载高清图片是付费功能，请查看付费计划</p>
@@ -293,9 +306,10 @@ const Editor = () => {
             </nav>
         </header>
 
-        <div className='w-full h-screen flex justify-center items-center bg-black'>
-          
-          <div style={{ position: 'relative', cursor: 'none' , opacity: opacity, transition: 'opacity 0.5s ease-in-out', }}>
+        <div className='w-full h-screen flex justify-center items-center bg-black'
+          style={{ background: "radial-gradient(circle, #6F6F6F 1px, transparent 1px)", backgroundSize: "30px 30px" }}
+        >
+          <div className={`relative transition-opacity duration-200 ease-in-out`} style={{opacity: opacity}}>
               <canvas
                   ref={canvasRef}
                   width={900}

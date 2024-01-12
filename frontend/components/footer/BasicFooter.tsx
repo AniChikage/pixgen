@@ -2,13 +2,13 @@
 export default function Footer () {
     return (
         <footer
-        className="bg-neutral-100 text-center text-neutral-600 light:bg-gray-800 light:text-neutral-200 lg:text-left">
+        className="bg-neutral-100 text-center text-neutral-600 light:bg-gray-800 light:text-neutral-200">
 
-        <div className="mx-6 py-8 text-center md:text-left">
-            <div className="grid-1 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+        <div className="relative mx-auto py-8 max-w-[82rem] text-center justify-between">
+            <div className="grid-1 grid gap-8 md:grid-cols-2 lg:grid-cols-4 text-center">
             <div className="">
                 <h6
-                className="mb-4 flex items-center justify-center font-semibold uppercase md:justify-start">
+                className="mb-4 flex items-center justify-start font-semibold uppercase ">
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -19,45 +19,45 @@ export default function Footer () {
                 </svg>
                 PIXGEN
                 </h6>
-                <p className="text-sm">
+                <p className="mb-4 flex items-center justify-center md:justify-start text-sm">
                 AI图片处理
                 </p>
             </div>
             <div className="">
                 <h6
-                className="mb-4 flex justify-center font-semibold uppercase md:justify-start">
+                className="mb-4 flex justify-start font-semibold uppercase ">
                 其他产品
                 </h6>
                 <p className="mb-4">
-                <a href="#!" className="text-neutral-600 light:text-neutral-200 text-sm">
+                <a href="#!" className="mb-4 flex items-center justify-center md:justify-start text-sm">
                     视频换脸（ 即将推出 ）
                 </a>
                 </p>
                 <p className="mb-4">
-                <a href="#!" className="text-neutral-600 light:text-neutral-200 text-sm" >
+                <a href="#!" className="mb-4 flex items-center justify-center md:justify-start text-sm" >
                     智能换声（ 即将推出 ）
                 </a>
                 </p>
             </div>
             <div className="">
                 <h6
-                className="mb-4 flex justify-center font-semibold uppercase md:justify-start">
+                className="mb-4 flex justify-start font-semibold uppercase">
                 链接
                 </h6>
                 <p className="mb-4">
-                <a href="#!" className="text-neutral-600 light:text-neutral-200 text-sm" >
+                <a href="#!" className="mb-4 flex items-center justify-center md:justify-start text-sm" >
                     隐私
                 </a>
                 </p>
                 <p className="mb-4">
-                <a href="#!" className="text-neutral-600 light:text-neutral-200 text-sm" >
+                <a href="#!" className="mb-4 flex items-center justify-center md:justify-start text-sm" >
                     退款
                 </a>
                 </p>
             </div>
-            <div>
+            <div  className="">
                 <h6
-                className="mb-4 flex justify-center font-semibold uppercase md:justify-start">
+                className="mb-4 flex justify-start font-semibold uppercase">
                 联系我们
                 </h6>
                 <p className="mb-4 flex items-center justify-center md:justify-start text-sm">

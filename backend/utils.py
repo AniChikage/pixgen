@@ -35,7 +35,7 @@ def upload_file(image, filename, processed=False, plugin_name=""):
     if not processed:
         local_file = os.path.join(CONFIG.LOCAL_PATH, filename)
         remote_file = os.path.join(CONFIG.REMOTE_PATH, filename)
-        remote_origin_image_url = f"http://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{filename}"
+        remote_origin_image_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{filename}"
         logging.info(f"remote_origin_image_url")
         image.save(local_file)
     else:
@@ -45,7 +45,7 @@ def upload_file(image, filename, processed=False, plugin_name=""):
         processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
         local_high_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
         remote_high_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
-        remote_processed_image_high_url = f"http://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
+        remote_processed_image_high_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
         image.save(local_high_file)
         # save half-size image
         image_resized = image.resize((image.width // 2, image.height // 2))
@@ -53,7 +53,7 @@ def upload_file(image, filename, processed=False, plugin_name=""):
         processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
         local_low_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
         remote_low_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
-        remote_processed_image_low_url = f"http://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
+        remote_processed_image_low_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
         image_resized.save(local_low_file)
 
     try:
@@ -90,6 +90,16 @@ def generate_token(email):
     redis_client.set(token, email)
     redis_client.expire(token, 86400)
     return token
+
+
+def filter_wx_code(code):
+    stored_code = redis_client.get(code)
+    if stored_code:
+        return None
+    else:
+        redis_client.set(code, code)
+        redis_client.expire(token, 5)
+        return code
 
 
 def get_email_from_token(token):

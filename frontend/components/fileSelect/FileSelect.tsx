@@ -1,19 +1,24 @@
 // UploadPage.jsx
 
 import { useRouter } from 'next/navigation';
-import { useState, useContext } from 'react';
+import { useState } from 'react';
 
 import { uploadImage } from '@/api/apis';
-import LoadingSpinner from './LoadingSpinner';
 import ScaleLoaderComponent from '@/components/loading/ScaleLoader';
 
 const FileSelector = (props: any) => {
     const router = useRouter();
     const [uploading, setUploading] = useState(false);
     
-    const uploaded = (event:  { target: { files: any[]; }; }) => {
-        const file = event.target.files[0];
+    const uploaded = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const fileInput = event.target;
+        if (!fileInput.files || fileInput.files.length === 0) {
+          return;
+        }
+      
+        const file = fileInput.files[0];
         console.log(file);
+
         const uploadImageToServer = async () => {
             try {
                 setUploading(true);
