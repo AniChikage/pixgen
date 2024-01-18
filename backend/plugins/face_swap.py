@@ -26,7 +26,7 @@ class FaceSwap():
             "swapper_model": "inswapper_128.onnx",
             "swapper_size": (640, 640),
             "swapper_suffix": "swapper"
-        }
+        } 
 
         model_path_gfpgan = os.path.join(CONFIG.MODEL_PATH, self.model_info["gfpgan_model"])
         model_path_realesr = os.path.join(CONFIG.MODEL_PATH, self.model_info["realesr_model"])
@@ -79,8 +79,12 @@ class FaceSwap():
         return result
 
     def enhance(self, swapped_image_bgr):
-        cropped_faces, restored_faces, restored_img = self.restorer.enhance(swapped_image_bgr, has_aligned=False, only_center_face=False, paste_back=True, weight=0.5)
-        restored_img_pil = Image.fromarray(restored_img)
+        cropped_faces, restored_faces, restored_img = self.restorer.enhance(swapped_image_bgr, paste_back=True, weight=0.5)
+
+        imwrite(restored_img, "restored_img.jpg")
+
+        img_rgb = cv2.cvtColor(restored_img, cv2.COLOR_BGR2RGB)
+        restored_img_pil = Image.fromarray(img_rgb)
         return restored_img_pil
 
     def __call__(self, source, filename, target):
@@ -88,8 +92,10 @@ class FaceSwap():
         dst = np.array(target)
 
         swapped_image = self.swap_faces(src, 1, dst, 1)
+        swapped_image = cv2.cvtColor(swapped_image, cv2.COLOR_RGB2BGR)
         swapped_image_pil = self.enhance(swapped_image)
 
+        # return swapped_image
         return swapped_image_pil
 
 

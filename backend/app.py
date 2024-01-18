@@ -442,6 +442,15 @@ def user_profile():
     if username is None:
         return jsonify({"status": "-1", "msg": "获取资料失败", "username": "", "effective_timestamp": "", "effective_counts": -1})
 
+    if effective_timestamp != "-1":
+        # logging.info(f"ssssss-: {effective_timestamp}")
+        current_time = datetime.now()
+        target_time = datetime.strptime(effective_timestamp, '%Y-%m-%d %H:%M:%S')
+        logging.info(f"current_time-: {current_time}")
+        logging.info(f"target_time-: {target_time}")
+        if current_time > target_time:
+            effective_timestamp = "-"
+
     return jsonify({"status": "1", "msg": "获取资料成功", "username": username, \
                     "effective_timestamp": effective_timestamp, \
                     "effective_counts": effective_counts})
@@ -769,7 +778,8 @@ def upscaler():
 
     filename = image.filename
     image_pil = Image.open(image)
-    upsampled_pil = RealESRGANUpscaler()(image_pil)
+    upscaler_object = RealESRGANUpscaler()
+    upsampled_pil = upscaler_object.upscale(image_pil)
     upload_file(image_pil, filename, processed=False, plugin_name="upscaler")
     _, image_high_url, image_low_url = upload_file(upsampled_pil, filename, processed=True, plugin_name="upscaler")
 
@@ -923,11 +933,16 @@ def swap_face():
     filename = source.filename
     source_pil = Image.open(source)
     target_pil = Image.open(target)
-    if source_pil.mode == "RGBA":
-        source_pil = source_pil.convert("RGB")
-    if target_pil.mode == "RGBA":
-        target_pil = target_pil.convert("RGB")
-    swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
+    source_pil.save("source.jpg")
+    target_pil.save("target.jpg")
+    # if source_pil.mode == "RGBA":
+    #     source_pil = source_pil.convert("RGB")
+    # if target_pil.mode == "RGBA":
+    #     target_pil = target_pil.convert("RGB")
+    try:
+      swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
+    except:
+      return jsonify({"status": "1", "msg": "换脸", "image_high_url": "", "image_low_url": ""})
     upload_file(source_pil, filename, processed=False, plugin_name="face_swapped")
     _, image_high_url, image_low_url = upload_file(swapped_image_pil, filename, processed=True, plugin_name="face_swapped")
 
@@ -1084,7 +1099,10 @@ def list_orders():
     subscription = {
       "0.01": "试用",
       "0.02": "灵活",
-      "0.03": "月付"
+      "0.03": "试用",
+      "1.90": "试用",
+      "4.90": "灵活",
+      "9.90": "月付"
     }
     for row in result:
         order_item = {}

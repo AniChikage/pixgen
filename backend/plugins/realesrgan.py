@@ -70,7 +70,7 @@ class RealESRGANUpscaler():
         )
 
 
-    def __call__(self, image):
+    def upscale(self, image):
         image_rgb_np = np.array(image)
         upsampled = self.model.enhance(image_rgb_np, outscale=2)[0]
         upsampled_pil = Image.fromarray(upsampled)
