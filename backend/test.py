@@ -19,20 +19,41 @@
 # print(image.getbands())
 # print(mask.getbands())
 
-import cv2
-import Final2x_core as Fin
 
 
-def Myupscale(picPATH: list[str]) -> None:
-    config = Fin.SRCONFIG()
-    config.inputpath = picPATH  # init log percentage
-    config.model = 'RealCUGAN-pro'
 
-    SR = Fin.SRFactory.getSR()
-    # RGB Mode, RGBA can refer Final2x_core.SR_queue
-    for i in picPATH:
-        img = cv2.imread(i, cv2.IMREAD_COLOR)
-        img = SR.process(img)
-        cv2.imwrite('Final2x-' + i, img)
+# import cv2
+# import Final2x_core as Fin
 
-Myupscale(["./pics/image.png"])
+
+# def Myupscale(picPATH: list[str]) -> None:
+#     config = Fin.SRCONFIG()
+#     config.inputpath = picPATH  # init log percentage
+#     config.model = 'RealCUGAN-pro'
+
+#     SR = Fin.SRFactory.getSR()
+#     # RGB Mode, RGBA can refer Final2x_core.SR_queue
+#     for i in picPATH:
+#         img = cv2.imread(i, cv2.IMREAD_COLOR)
+#         img = SR.process(img)
+#         cv2.imwrite('Final2x-' + i, img)
+
+# Myupscale(["./pics/image.png"])
+
+
+from helper.mysql import MySQLConnector
+
+mysql_connector = MySQLConnector()
+mysql_connector.connect()
+query = "SELECT * FROM user where email='87722922@qq.com'"
+result = mysql_connector.execute_query(query)
+
+if result:
+    print("sdfsd")
+else:
+    print("no")
+
+print(result)
+
+
+

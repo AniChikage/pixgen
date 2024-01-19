@@ -31,8 +31,8 @@ from plugins.face_swap import FaceSwap
 # wx
 from helper.wx import WXObject 
 
-# mysql
-from helper.mysql import MySQLConnector
+# mysql helper
+from helper.mysql import M
 
 import config as CONFIG
 from utils import (
@@ -185,22 +185,21 @@ def register_user():
         return jsonify({"status": "-2", "msg": "验证码过期", "token": ""})
     if stored_validation_code != validation_code:
         return jsonify({"status": "-3", "msg": "验证码不正确", "token": ""})
-
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
-
-    # check if user is registered
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
     query = f"SELECT COUNT(*) FROM user WHERE email = '{email}'"
-    result = mysql_connector.execute_query(query)
-    if result:
+    cursor.execute(query)
+    count = cursor.fetchone()[0]
+    if (count > 0):
         return jsonify({"status": "-1", "msg": "该邮件已经注册", "token": ""})
     
     created_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     query = f"INSERT INTO user (email, username, password, created_timestamp, \
                      effective_timestamp, effective_counts) VALUES \
                    ('{email}', '{username}', '{password}', '{created_time}', '{created_time}', 0)"
-    result = mysql_connector.execute_query(query)
-    mysql_connector.disconnect()
+    cursor.execute(query)
+    conn.commit()
+    conn.close()
 
     token = generate_token(email)
 
@@ -307,15 +306,15 @@ def login_user():
     password = request.form["password"]
     logging.info(f"{email} login...")
 
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
     query = f"SELECT username FROM user WHERE email = '{email}' and password = '{password}'"
-    result = mysql_connector.execute_query(query)
-    if not result:
+    cursor.execute(query)
+    username = cursor.fetchone()[0]
+    conn.close()
+    if username is None:
         return jsonify({"status": "-1", "msg": "邮箱或密码错误", "username": "", "token": ""})
-    mysql_connector.disconnect()
 
-    username = result[0]
     token = generate_token(email)
 
     return jsonify({"status": "1", "msg": "登陆成功", "username": username, "token": token})
@@ -365,19 +364,24 @@ def wx_login_user():
     unionid, username = wxObject.getUserInfo()
 
     # check if user registered
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
     query = f"SELECT username FROM user WHERE email = '{unionid}'"
-    result = mysql_connector.execute_query(query)
+    cursor.execute(query)
+    result = cursor.fetchone()
+    conn.close()
     if result:
       logging.info("user is already registered")
     else:
+      conn = sqlite3.connect(CONFIG.DATABASE)
+      cursor = conn.cursor()
       created_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
       query = f"INSERT INTO user (email, username, password, created_timestamp, \
                       effective_timestamp, effective_counts) VALUES \
                     ('{unionid}', '{username}', '', '{created_time}', '{created_time}', 0)"
-      mysql_connector.execute(query)
-    mysql_connector.disconnect()
+      cursor.execute(query)
+      conn.commit()
+      conn.close()
     
     token = generate_token(unionid)
 
@@ -432,15 +436,14 @@ def user_profile():
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": -1})
     logging.info(f"{email} login...")
 
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
     query = f"SELECT username, effective_timestamp, effective_counts FROM user WHERE email = '{email}'"
-    result = mysql_connector.execute_query(query)
-    mysql_connector.disconnect()
-    if not result:
+    cursor.execute(query)
+    username, effective_timestamp, effective_counts = cursor.fetchone()
+    conn.close()
+    if username is None:
         return jsonify({"status": "-1", "msg": "获取资料失败", "username": "", "effective_timestamp": "", "effective_counts": -1})
-
-    username, effective_timestamp, effective_counts = result[0]
 
     if effective_timestamp != "-1":
         # logging.info(f"ssssss-: {effective_timestamp}")
@@ -457,12 +460,13 @@ def user_profile():
 
 
 def check_user_pro(email):
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
     query = f"SELECT effective_timestamp, effective_counts FROM user WHERE email = '{email}'"
-    result = mysql_connector.execute_query(query)
-    effective_timestamp, effective_counts = result[0]
-    mysql_connector.disconnect()
+    cursor.execute(query)
+    result = cursor.fetchone()
+    effective_timestamp, effective_counts = result
+    conn.close()
 
     if effective_timestamp != "-1":
         current_time = datetime.now()
@@ -564,20 +568,22 @@ def update_pro():
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
     logging.info(f"{email} updating pro...")
 
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
     query = f"SELECT effective_timestamp, effective_counts FROM user WHERE email = '{email}'"
-    result = mysql_connector.execute_query(query)
-    _, effective_counts = result[0]
+    cursor.execute(query)
+    result = cursor.fetchone()
+    _, effective_counts = result
 
     if int(effective_counts) <= 0:
         return jsonify({"status": "-1", "msg": "无剩余次数", "effective": "0"})
 
     effective_counts -= 1
     query = f"update user set effective_counts={effective_counts} where email = '{email}'"
-    result = mysql_connector.execute_query(query)
-
-    mysql_connector.disconnect()
+    cursor.execute(query)
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     return jsonify({"status": "1", "msg": "更新完成", "effective": "1"})
 
@@ -1077,18 +1083,17 @@ def list_orders():
     page_size = 5
     offset = (int(page) - 1) * page_size
 
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
-    query = f"SELECT effective_timestamp, effective_counts FROM user WHERE email = '{email}'"
-    result = mysql_connector.execute_query(query)
-
+    conn = sqlite3.connect(CONFIG.DATABASE)
+    cursor = conn.cursor()
     # get all order number
     query = f"SELECT out_trade_no, trade_no, total_amount, gmt_payment FROM orders WHERE email = '{email}' and trade_status = 'TRADE_SUCCESS'"
-    result = mysql_connector.execute_query(query)
+    cursor.execute(query)
+    result = cursor.fetchall()
     record_num = len(result)
     # get page record
     query = f"SELECT out_trade_no, trade_no, total_amount, gmt_payment FROM orders WHERE email = '{email}' and trade_status = 'TRADE_SUCCESS' order by gmt_payment desc limit {page_size} offset {offset}"
-    result = mysql_connector.execute_query(query)
+    cursor.execute(query)
+    result = cursor.fetchall()
 
     if not result:
         return  jsonify({"status": "1", "msg": "获取订单成功", "orders": [], "has_next": "no"})
@@ -1112,7 +1117,8 @@ def list_orders():
         order_item["subscription"] = subscription[total_amount]
         orders.append(order_item)
 
-    mysql_connector.disconnect()
+    cursor.close()
+    conn.close()
 
     if int(page) * page_size < record_num:
         return jsonify({"status": "1", "msg": "获取订单成功", "orders": orders, "has_next": "yes"})
@@ -1188,22 +1194,20 @@ def create_order():
     response = client.page_execute(orderRequest, http_method="GET")
     logging.info("alipay.trade.page.pay response:" + response)
 
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
+    conn = sqlite3.connect('./database/studio.sqlite')
+    cursor = conn.cursor()
     query = f"insert into orders (email, out_trade_no, total_amount, \
                     trade_status, trade_no, gmt_create, gmt_payment, create_time) values \
                     ('{email}', '{out_trade_no}', '', '', '', '', '', '{order_created_timestamp}')"
-    result = mysql_connector.execute_query(query)
-    mysql_connector.disconnect()
+    logging.info(query)
+    cursor.execute(query)
+    conn.commit()
 
     return {"status": "1", "msg": "创建成功", "url": response, "out_trade_no": out_trade_no}
 
 
 @app.route("/api/order/notify_order", methods=["POST"])
 def notify_order():
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
-
     logging.info("notify_order")
     out_trade_no = request.form["out_trade_no"]
     total_amount = request.form["total_amount"]
@@ -1213,13 +1217,14 @@ def notify_order():
     gmt_payment = request.form["gmt_payment"]
 
     logging.info(f"out_trade_no: {out_trade_no}")
-
-    mysql_connector = MySQLConnector()
-    mysql_connector.connect()
+    conn = sqlite3.connect('./database/studio.sqlite')
+    cursor = conn.cursor()
 
     # get trade status
     query = f"SELECT trade_status FROM orders WHERE out_trade_no = '{out_trade_no}'"
-    result = mysql_connector.execute_query(query)
+    logging.info(query)
+    cursor.execute(query)
+    result = cursor.fetchone()
     last_trade_status = result[0]
     logging.info(f"trade_status: {last_trade_status}")
     if last_trade_status == "TRADE_SUCCESS":
@@ -1229,19 +1234,24 @@ def notify_order():
     query = f"update orders set total_amount='{total_amount}', trade_status='{trade_status}', \
               trade_no='{trade_no}', gmt_create='{gmt_create}', gmt_payment='{gmt_payment}' \
               where out_trade_no='{out_trade_no}'"
-    result = mysql_connector.execute_query(query)
+    logging.info(query)
+    cursor.execute(query)
+    conn.commit()
 
     # get user email
     query = f"SELECT email FROM orders WHERE out_trade_no = '{out_trade_no}'"
-    result = mysql_connector.execute_query(query)
+    logging.info(query)
+    cursor.execute(query)
+    result = cursor.fetchone()
     email = result[0]
     logging.info(f"email: {email}")
 
     # get last effective timestamp
     query = f"SELECT effective_timestamp, effective_counts FROM user WHERE email = '{email}'"
     logging.info(query)
-    result = mysql_connector.execute_query(query)
-    last_effective_timestamp, last_effective_counts = result[0]
+    cursor.execute(query)
+    result = cursor.fetchone()
+    last_effective_timestamp, last_effective_counts = result
     logging.info(f"last_effective_timestamp: {last_effective_timestamp}, last_effective_counts: {last_effective_counts}")
 
     if trade_status == "TRADE_SUCCESS":
@@ -1255,21 +1265,23 @@ def notify_order():
             effective_timestamp = last_effective_timestamp + timedelta(days=1)
             effective_timestamp = effective_timestamp.strftime("%Y-%m-%d %H:%M:%S")
             query = f"update user set effective_timestamp='{effective_timestamp}' where email='{email}'"
-            result = mysql_connector.execute_query(query)
+            cursor.execute(query)
+            conn.commit()
             logging.info(f"update {email} from {last_effective_timestamp} to {effective_timestamp}")
         elif subscription == "flexible":
             last_effective_counts += 100
             query = f"update user set effective_counts={last_effective_counts} where email='{email}'"
-            result = mysql_connector.execute_query(query)
+            cursor.execute(query)
+            conn.commit()
             logging.info(f"update {email} to {last_effective_counts}")
         elif subscription == "plus":
             effective_timestamp = last_effective_timestamp + timedelta(days=30)
             effective_timestamp = effective_timestamp.strftime("%Y-%m-%d %H:%M:%S")
             query = f"update user set effective_timestamp='{effective_timestamp}' where email='{email}'"
-            result = mysql_connector.execute_query(query)
+            cursor.execute(query)
+            conn.commit()
             logging.info(f"update {email} from {last_effective_timestamp} to {effective_timestamp}")
 
-    mysql_connector.disconnect()
     logging.info({"notify": "done"})
     return {"notify": "done"}
 
