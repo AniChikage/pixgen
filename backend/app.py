@@ -192,7 +192,11 @@ def register_user():
     # check if user is registered
     query = f"SELECT COUNT(*) FROM user WHERE email = '{email}'"
     result = mysql_connector.execute_query(query)
-    if result:
+    logging.info(f"registering ... {query}")
+    logging.info(f"registering ... {result}")
+    logging.info(f"registering ... {result[0]}")
+    logging.info(f"registering ... {result[0][0]}")
+    if result[0][0] != 0:
         return jsonify({"status": "-1", "msg": "该邮件已经注册", "token": ""})
     
     created_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -376,7 +380,7 @@ def wx_login_user():
       query = f"INSERT INTO user (email, username, password, created_timestamp, \
                       effective_timestamp, effective_counts) VALUES \
                     ('{unionid}', '{username}', '', '{created_time}', '{created_time}', 0)"
-      mysql_connector.execute(query)
+      mysql_connector.execute_query(query)
     mysql_connector.disconnect()
     
     token = generate_token(unionid)
@@ -1005,6 +1009,32 @@ def upload_image():
 
 
 """
+UTILS
+"""
+@app.route("/api/config/get_hint", methods=["POST"])
+def getHint():
+    """
+    获取banner
+
+    ---
+    tags:
+      - CONFIG
+    """
+    
+    mysql_connector = MySQLConnector()
+    mysql_connector.connect()
+    query = "select show_hint, hint from config"
+    result = mysql_connector.execute_query(query)
+    # logging.info(result)
+    msg_show_hint = result[0][0]
+    msg_hint = result[0][1]
+
+    return {"status": "1", "msg": "获取成功", "show_hint": msg_show_hint, "hint": msg_hint}
+
+
+
+
+"""
 order
 """
 @app.route("/api/order/list_orders", methods=["POST"])
@@ -1171,6 +1201,8 @@ def create_order():
     if email is None:
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
 
+    logging.info(f"create order: {email}")
+
     order_created_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     order_random_string = generate_random_string()
 
@@ -1193,6 +1225,7 @@ def create_order():
     query = f"insert into orders (email, out_trade_no, total_amount, \
                     trade_status, trade_no, gmt_create, gmt_payment, create_time) values \
                     ('{email}', '{out_trade_no}', '', '', '', '', '', '{order_created_timestamp}')"
+    logging.info(f"create order [query]: {query}")
     result = mysql_connector.execute_query(query)
     mysql_connector.disconnect()
 
@@ -1220,7 +1253,8 @@ def notify_order():
     # get trade status
     query = f"SELECT trade_status FROM orders WHERE out_trade_no = '{out_trade_no}'"
     result = mysql_connector.execute_query(query)
-    last_trade_status = result[0]
+    logging.info(f"get trade status: {result}")
+    last_trade_status = result[0][0]
     logging.info(f"trade_status: {last_trade_status}")
     if last_trade_status == "TRADE_SUCCESS":
         return {"notify": "done"}
@@ -1233,13 +1267,14 @@ def notify_order():
 
     # get user email
     query = f"SELECT email FROM orders WHERE out_trade_no = '{out_trade_no}'"
+    logging.info(f"get user email: {query}")
     result = mysql_connector.execute_query(query)
-    email = result[0]
+    email = result[0][0]
     logging.info(f"email: {email}")
 
     # get last effective timestamp
     query = f"SELECT effective_timestamp, effective_counts FROM user WHERE email = '{email}'"
-    logging.info(query)
+    logging.info(f"get last effective timestamp: {query}")
     result = mysql_connector.execute_query(query)
     last_effective_timestamp, last_effective_counts = result[0]
     logging.info(f"last_effective_timestamp: {last_effective_timestamp}, last_effective_counts: {last_effective_counts}")

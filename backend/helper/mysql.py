@@ -18,7 +18,8 @@ class MySQLConnector:
                 host=self.host,
                 user=self.user,
                 password=self.password,
-                database=self.database
+                database=self.database,
+                autocommit=True
             )
         except mysql.connector.Error as err:
             logging.info(f"Error: {err}")

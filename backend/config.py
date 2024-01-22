@@ -20,6 +20,7 @@ WX_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/sns/oauth2/access_token"
 WX_USERINFO_URL = "https://api.weixin.qq.com/sns/userinfo"
 
 PRICE_CONFIG = {
+    "0.01": "trial",
     "1.90": "trial",
     "4.90": "flexible",
     "9.90": "plus"
