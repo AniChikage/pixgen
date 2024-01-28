@@ -3,15 +3,15 @@ CUSTOM_DOMAIN = "pixgen.pro"
 HOST = "0.0.0.0"
 PORT = "8001"
 HTTPS_PORT = "8002"
-LOCAL_PATH="/home/brook/workspace/pixgen-images"
+LOCAL_PATH="/home/anichikage/workspace/pixgen-images"
 REMOTE_HOST = "82.157.250.59"
 REMOTE_PORT = "8010"
 REMOTE_PATH = "/var/www/html/images/pixgen/"
 REMOTE_USERNAME = "ubuntu"
-REMOTE_PRIVATE_KEY = "/home/brook/.ssh/id_rsa"
+REMOTE_PRIVATE_KEY = "/home/anichikage/.ssh/id_rsa"
 
 DATABASE = "./database/studio.sqlite"
-MODEL_PATH = "/home/brook/workspace/models"
+MODEL_PATH = "/home/anichikage/workspace/models"
 
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379

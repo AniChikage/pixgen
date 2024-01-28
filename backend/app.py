@@ -150,11 +150,6 @@ def register_user():
         type: string
         required: true
         description: 密码
-      - name: validation_code
-        in: formData
-        type: string
-        required: true
-        description: 邮箱验证码
     responses:
       200:
         description: 响应
@@ -176,15 +171,15 @@ def register_user():
     email = request.form["email"]
     username = request.form["username"]
     password = request.form["password"]
-    validation_code = request.form["validation_code"]
+    # validation_code = request.form["validation_code"]
     logging.info(f"{email} registering...")
 
 
-    stored_validation_code = get_validation_code_from_email(email)
-    if stored_validation_code is None:
-        return jsonify({"status": "-2", "msg": "验证码过期", "token": ""})
-    if stored_validation_code != validation_code:
-        return jsonify({"status": "-3", "msg": "验证码不正确", "token": ""})
+    # stored_validation_code = get_validation_code_from_email(email)
+    # if stored_validation_code is None:
+    #     return jsonify({"status": "-2", "msg": "验证码过期", "token": ""})
+    # if stored_validation_code != validation_code:
+    #     return jsonify({"status": "-3", "msg": "验证码不正确", "token": ""})
 
     mysql_connector = MySQLConnector()
     mysql_connector.connect()
@@ -517,7 +512,9 @@ def check_pro():
         token = auth_header.split(" ")[1]
     else:
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
+    logging.info(f"token:  {token}")
     email = get_email_from_token(token)
+    logging.info(f"email:  {email}")
     if email is None:
         return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "effective": "0"})
     logging.info(f"{email} checking pro...")
@@ -714,8 +711,8 @@ def blur_bg():
     filename = image.filename
     image_pil = Image.open(image)
     image_removed_pil = BlurBackground()(image_pil, degree)
-    upload_file(image_pil, filename, processed=False, plugin_name="removebg")
-    _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="removebg")
+    upload_file(image_pil, filename, processed=False, plugin_name="blur")
+    _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="blur")
 
     if email is None:
         image_high_url = ""

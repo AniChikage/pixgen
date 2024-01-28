@@ -3,8 +3,12 @@ import logging
 import numpy as np
 
 import cv2
+import torch
 from PIL import Image
-from realesrgan import RealESRGANer
+from basicsr.utils import imwrite
+# from realesrgan import RealESRGANer
+from gfpgan.utils import GFPGANer
+from realesrgan.utils import RealESRGANer
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from realesrgan.archs.srvgg_arch import SRVGGNetCompact
 
@@ -14,6 +18,8 @@ import config as CONFIG
 class RealESRGANUpscaler():
     def __init__(self):
         super().__init__()
+
+        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
         REAL_ESRGAN_MODELS = {
             "realesr_general_x4v3": {
@@ -62,16 +68,55 @@ class RealESRGANUpscaler():
             scale=model_info["scale"],
             model_path=os.path.join(CONFIG.MODEL_PATH, "RealESRGAN_x4plus.pth"),
             model=model_info["model"](),
-            half=False,
+            half=False if DEVICE == "cpu" else True,
             tile=512,
             tile_pad=10,
             pre_pad=10,
-            device="cpu",
+            device=DEVICE,
         )
+
+        
+        model_path_gfpgan = os.path.join(CONFIG.MODEL_PATH, "GFPGANv1.4.pth")
+        model_path_realesr = os.path.join(CONFIG.MODEL_PATH, "realesr-general-x4v3.pth")
+        model = SRVGGNetCompact(
+            num_in_ch=3, 
+            num_out_ch=3, 
+            num_feat=64, 
+            num_conv=32, 
+            upscale=4, 
+            act_type="prelu"
+        )
+        bg_upsampler = RealESRGANer(
+            scale=4, 
+            model_path=model_path_realesr, 
+            model=model, 
+            tile=512, 
+            tile_pad=10, 
+            pre_pad=0, 
+            half=False
+        )
+        self.restorer = GFPGANer(
+            model_path=model_path_gfpgan,
+            upscale=2,
+            arch="clean",
+            channel_multiplier=2,
+            bg_upsampler=bg_upsampler
+        )
+
+    def enhance(self, upsampled):
+        cropped_faces, restored_faces, restored_img = self.restorer.enhance(upsampled, paste_back=True, weight=0.5)
+
+        imwrite(restored_img, "restored_img.jpg")
+
+        img_rgb = cv2.cvtColor(restored_img, cv2.COLOR_BGR2RGB)
+        restored_img_pil = Image.fromarray(img_rgb)
+        return restored_img_pil
 
 
     def upscale(self, image):
         image_rgb_np = np.array(image)
         upsampled = self.model.enhance(image_rgb_np, outscale=2)[0]
-        upsampled_pil = Image.fromarray(upsampled)
+        upsampled = cv2.cvtColor(upsampled, cv2.COLOR_RGB2BGR)
+        upsampled_pil = self.enhance(upsampled)
+        # upsampled_pil = Image.fromarray(upsampled)
         return upsampled_pil
