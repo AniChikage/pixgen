@@ -95,6 +95,7 @@ class FaceSwap():
         swapped_image = cv2.cvtColor(swapped_image, cv2.COLOR_RGB2BGR)
         swapped_image_pil = self.enhance(swapped_image)
 
+        torch.cuda.empty_cache()
         # return swapped_image
         return swapped_image_pil
 

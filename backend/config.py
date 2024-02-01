@@ -15,6 +15,7 @@ MODEL_PATH = "/home/anichikage/workspace/models"
 
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379
+REDIS_PASSWORD = "Pmet_123456"
 
 WX_ACCESS_TOKEN_URL = "https://api.weixin.qq.com/sns/oauth2/access_token"
 WX_USERINFO_URL = "https://api.weixin.qq.com/sns/userinfo"

@@ -19,7 +19,7 @@ class RealESRGANUpscaler():
     def __init__(self):
         super().__init__()
 
-        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        self.DEVICE = "cuda:1" if torch.cuda.is_available() else "cpu"
 
         REAL_ESRGAN_MODELS = {
             "realesr_general_x4v3": {
@@ -68,11 +68,11 @@ class RealESRGANUpscaler():
             scale=model_info["scale"],
             model_path=os.path.join(CONFIG.MODEL_PATH, "RealESRGAN_x4plus.pth"),
             model=model_info["model"](),
-            half=False if DEVICE == "cpu" else True,
+            half=False if self.DEVICE == "cpu" else True,
             tile=512,
             tile_pad=10,
             pre_pad=10,
-            device=DEVICE,
+            device=self.DEVICE,
         )
 
         
@@ -119,4 +119,8 @@ class RealESRGANUpscaler():
         upsampled = cv2.cvtColor(upsampled, cv2.COLOR_RGB2BGR)
         upsampled_pil = self.enhance(upsampled)
         # upsampled_pil = Image.fromarray(upsampled)
+        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.reset_max_memory_allocated(device=self.DEVICE)
+            torch.cuda.reset_max_memory_cached(device=self.DEVICE)
         return upsampled_pil

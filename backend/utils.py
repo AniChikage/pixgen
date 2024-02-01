@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 import config as CONFIG
 
 
-redis_client = redis.StrictRedis(host=CONFIG.REDIS_HOST, port=CONFIG.REDIS_PORT, decode_responses=True)
+redis_client = redis.StrictRedis(host=CONFIG.REDIS_HOST, port=CONFIG.REDIS_PORT, password=CONFIG.REDIS_PASSWORD, decode_responses=True)
 
 def generate_random_string(length=8):
     characters = string.ascii_letters + string.digits
@@ -28,7 +28,26 @@ def generate_random_integer(length=6):
     return str(random_number)
 
 
-def upload_file(image, filename, processed=False, plugin_name=""):
+def down_image_size(image_pil):
+    original_width, original_height = image_pil.size
+    resized_image = image_pil
+    logging.info(f"original image size: {image_pil.size}")
+    down_ratio = 8
+    if original_width * original_height >= 1500 * 1500:
+        new_width = original_width // 2
+        new_height = original_height // 2
+        resized_image = image_pil.resize((new_width, new_height))
+        down_ratio = 4
+    logging.info(f"resized image size: {resized_image.size}")
+    return resized_image, down_ratio
+
+
+def upload_file(image, filename, processed=False, plugin_name="", down_ratio=2):
+    max_size = 10 * 1024 * 1024
+    quality = 85
+    image_data = image.tobytes()
+    image_size = len(image_data)
+
     remote_origin_image_url = ""
     remote_processed_image_high_url = ""
     remote_processed_image_low_url = ""
@@ -40,22 +59,40 @@ def upload_file(image, filename, processed=False, plugin_name=""):
         image.save(local_file)
     else:
         # save original-size image
-        base_filename, _ = os.path.splitext(filename)
-        random_tails = generate_random_string()
-        processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
-        local_high_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
-        remote_high_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
-        remote_processed_image_high_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
-        image.save(local_high_file)
-        # save half-size image
-        image_resized = image.resize((image.width // 2, image.height // 2))
-        random_tails = generate_random_string()
-        processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
-        local_low_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
-        remote_low_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
-        remote_processed_image_low_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
-        image_resized.save(local_low_file)
-
+        logging.info(f"image_size: {image_size}")
+        logging.info(f"max_size: {max_size}")
+        if image_size < max_size or plugin_name == "removebg":
+            base_filename, _ = os.path.splitext(filename)
+            random_tails = generate_random_string()
+            processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
+            local_high_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
+            remote_high_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
+            remote_processed_image_high_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
+            image.save(local_high_file)
+            # save half-size image
+            image_resized = image.resize((image.width // down_ratio, image.height // down_ratio))
+            random_tails = generate_random_string()
+            processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.png"
+            local_low_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
+            remote_low_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
+            remote_processed_image_low_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
+            image_resized.save(local_low_file)
+        else:
+            base_filename, _ = os.path.splitext(filename)
+            random_tails = generate_random_string()
+            processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.jpg"
+            local_high_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
+            remote_high_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
+            remote_processed_image_high_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
+            image.save(local_high_file, "JPEG", quality=quality)
+            # save half-size image
+            image_resized = image.resize((image.width // down_ratio, image.height // down_ratio))
+            random_tails = generate_random_string()
+            processed_filename = f"{base_filename}_{plugin_name}_{random_tails}.jpg"
+            local_low_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
+            remote_low_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
+            remote_processed_image_low_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
+            image_resized.save(local_low_file)
     try:
         private_key = paramiko.RSAKey(filename=CONFIG.REMOTE_PRIVATE_KEY)
         transport = paramiko.Transport((CONFIG.REMOTE_HOST, 22))

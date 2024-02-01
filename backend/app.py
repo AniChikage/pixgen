@@ -41,6 +41,7 @@ from utils import (
      upload_file, 
      generate_token, 
      filter_wx_code,
+     down_image_size,
      get_email_from_token, 
      generate_random_string, 
      generate_validation_code,
@@ -362,6 +363,9 @@ def wx_login_user():
     # get wx username
     wxObject = WXObject(code)
     unionid, username = wxObject.getUserInfo()
+    logging.info(f"wx user login...unionid: {unionid}")
+    if unionid == "":
+        return jsonify({"status": "-1", "msg": "unionid is empty", "username": "", "token": ""})
 
     # check if user registered
     mysql_connector = MySQLConnector()
@@ -375,6 +379,7 @@ def wx_login_user():
       query = f"INSERT INTO user (email, username, password, created_timestamp, \
                       effective_timestamp, effective_counts) VALUES \
                     ('{unionid}', '{username}', '', '{created_time}', '{created_time}', 0)"
+      logging.info(f"wx user login...query: {query}")
       mysql_connector.execute_query(query)
     mysql_connector.disconnect()
     
@@ -640,12 +645,12 @@ def remove_bg():
     upload_file(image_pil, filename, processed=False, plugin_name="removebg")
     _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="removebg")
 
-    if email is None:
-        image_high_url = ""
-    else:
-        user_pro = check_user_pro(email)
-        if user_pro["effective"] == "0":
-            image_high_url = ""
+    # if email is None:
+    #     image_high_url = ""
+    # else:
+    #     user_pro = check_user_pro(email)
+    #     if user_pro["effective"] == "0":
+    #         image_high_url = ""
 
     return jsonify({"status": "1", "msg": "消除背景完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
@@ -714,12 +719,12 @@ def blur_bg():
     upload_file(image_pil, filename, processed=False, plugin_name="blur")
     _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="blur")
 
-    if email is None:
-        image_high_url = ""
-    else:
-        user_pro = check_user_pro(email)
-        if user_pro["effective"] == "0":
-            image_high_url = ""
+    # if email is None:
+    #     image_high_url = ""
+    # else:
+    #     user_pro = check_user_pro(email)
+    #     if user_pro["effective"] == "0":
+    #         image_high_url = ""
 
     return jsonify({"status": "1", "msg": "模糊背景完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
@@ -776,17 +781,20 @@ def upscaler():
 
     filename = image.filename
     image_pil = Image.open(image)
+
+    image_pil, down_ratio = down_image_size(image_pil)
+
     upscaler_object = RealESRGANUpscaler()
     upsampled_pil = upscaler_object.upscale(image_pil)
     upload_file(image_pil, filename, processed=False, plugin_name="upscaler")
-    _, image_high_url, image_low_url = upload_file(upsampled_pil, filename, processed=True, plugin_name="upscaler")
+    _, image_high_url, image_low_url = upload_file(upsampled_pil, filename, processed=True, plugin_name="upscaler",down_ratio=down_ratio)
 
-    if email is None:
-        image_high_url = ""
-    else:
-        user_pro = check_user_pro(email)
-        if user_pro["effective"] == "0":
-            image_high_url = ""
+    # if email is None:
+    #     image_high_url = ""
+    # else:
+    #     user_pro = check_user_pro(email)
+    #     if user_pro["effective"] == "0":
+    #         image_high_url = ""
 
     return jsonify({"status": "1", "msg": "放大完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
@@ -851,8 +859,8 @@ def remove_object():
     image_pil = Image.open(image)
     mask_pil = Image.open(mask)
 
-    image_pil.save("image.png")
-    mask_pil.save("mask.png")
+    # image_pil.save("image.png")
+    # mask_pil.save("mask.png")
 
     image_pil = image_pil.convert("RGB")
     mask_pil = resize_mask(image_pil, mask_pil)
@@ -929,6 +937,7 @@ def swap_face():
     logging.info(f"{email}")
 
     filename = source.filename
+    filename_target = target.filename
     source_pil = Image.open(source)
     target_pil = Image.open(target)
     # source_pil.save("source.jpg")
@@ -941,15 +950,16 @@ def swap_face():
     swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
     # except:
     #   return jsonify({"status": "1", "msg": "换脸", "image_high_url": "", "image_low_url": ""})
-    upload_file(source_pil, filename, processed=False, plugin_name="face_swapped")
+    upload_file(source_pil, f"faceswap_source_{filename}", processed=False, plugin_name="")
+    upload_file(target_pil, f"faceswap_target_{filename_target}", processed=False, plugin_name="")
     _, image_high_url, image_low_url = upload_file(swapped_image_pil, filename, processed=True, plugin_name="face_swapped")
 
-    if email is None:
-        image_high_url = ""
-    else:
-        user_pro = check_user_pro(email)
-        if user_pro["effective"] == "0":
-            image_high_url = ""
+    # if email is None:
+    #     image_high_url = ""
+    # else:
+    #     user_pro = check_user_pro(email)
+    #     if user_pro["effective"] == "0":
+    #         image_high_url = ""
 
     return jsonify({"status": "1", "msg": "换脸", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
