@@ -81,7 +81,7 @@ class FaceSwap():
     def enhance(self, swapped_image_bgr):
         cropped_faces, restored_faces, restored_img = self.restorer.enhance(swapped_image_bgr, paste_back=True, weight=0.5)
 
-        imwrite(restored_img, "restored_img.jpg")
+        # imwrite(restored_img, "restored_img.jpg")
 
         img_rgb = cv2.cvtColor(restored_img, cv2.COLOR_BGR2RGB)
         restored_img_pil = Image.fromarray(img_rgb)

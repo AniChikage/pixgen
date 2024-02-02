@@ -75,6 +75,10 @@ app.config["SWAGGER"] = {
 cors = CORS(app, origins="*")
 swagger = Swagger(app)
 
+# logging.basicConfig(filename='app.log',
+#                     level=logging.INFO, 
+#                     format="%(asctime)s %(levelname)s %(message)s", 
+#                     filemode="a",)
 logging.basicConfig(level=logging.INFO, 
                     format="%(asctime)s %(levelname)s %(message)s", 
                     filemode="a",)
@@ -927,6 +931,21 @@ def swap_face():
     """
     source = request.files["source"]
     target = request.files["target"]
+    ip = request.form.get('ip')
+    if not ip:
+        logging.info(f"ip is none")
+    else:
+        logging.info(f"ip: {ip}") 
+
+    mysql_connector = MySQLConnector()
+    mysql_connector.connect()
+    if ip:
+        query = f"select ip from denied where ip='{ip}'"
+        result = mysql_connector.execute_query(query)
+        logging.info(f"result: {len(result)}") 
+        if len(result) == 1:
+            return jsonify({"status": "-20", "msg": "ip被禁止", "image_high_url": "", "image_low_url": ""})
+  
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
@@ -940,6 +959,11 @@ def swap_face():
     filename_target = target.filename
     source_pil = Image.open(source)
     target_pil = Image.open(target)
+
+    """
+    
+    """
+
     # source_pil.save("source.jpg")
     # target_pil.save("target.jpg")
     if source_pil.mode == "RGBA":

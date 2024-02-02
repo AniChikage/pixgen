@@ -61,6 +61,7 @@ def upload_file(image, filename, processed=False, plugin_name="", down_ratio=2):
         # save original-size image
         logging.info(f"image_size: {image_size}")
         logging.info(f"max_size: {max_size}")
+        # convert to jpg if image size > 10M, except for removebg, it needs transparency
         if image_size < max_size or plugin_name == "removebg":
             base_filename, _ = os.path.splitext(filename)
             random_tails = generate_random_string()
@@ -84,6 +85,8 @@ def upload_file(image, filename, processed=False, plugin_name="", down_ratio=2):
             local_high_file = os.path.join(CONFIG.LOCAL_PATH, processed_filename)
             remote_high_file = os.path.join(CONFIG.REMOTE_PATH, processed_filename)
             remote_processed_image_high_url = f"https://{CONFIG.CUSTOM_DOMAIN}:{CONFIG.REMOTE_PORT}/images/pixgen/{processed_filename}"
+            if image.mode == "RGBA":
+                image = image.convert("RGB")
             image.save(local_high_file, "JPEG", quality=quality)
             # save half-size image
             image_resized = image.resize((image.width // down_ratio, image.height // down_ratio))
