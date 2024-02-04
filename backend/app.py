@@ -7,6 +7,7 @@ import logging
 import random
 import time
 import string
+import subprocess
 import multiprocessing
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -22,13 +23,18 @@ import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
 
+"""
+MODEL
+"""
 from plugins.remove_bg import RemoveBG
 from plugins.realesrgan import RealESRGANUpscaler
 from plugins.remove_object import RemoveObject
 from plugins.blur_background import BlurBackground
 from plugins.face_swap import FaceSwap
 
-# wx
+"""
+wechat login
+"""
 from helper.wx import WXObject 
 
 # mysql
@@ -863,14 +869,41 @@ def remove_object():
     image_pil = Image.open(image)
     mask_pil = Image.open(mask)
 
-    # image_pil.save("image.png")
-    # mask_pil.save("mask.png")
-
     image_pil = image_pil.convert("RGB")
     mask_pil = resize_mask(image_pil, mask_pil)
     mask_pil = enrich_mask(mask_pil)
 
-    image_removed_pil = RemoveObject()(image_pil, mask_pil)
+    # random_string = generate_random_string()
+    # logging.info(f"{random_string}")
+    # image_pil.save(f"image_{random_string}.png")
+    # mask_pil.save(f"mask_{random_string}.png")
+
+    
+    image_file_path = os.path.join(CONFIG.LOCAL_PATH, filename)
+    mask_file_path = os.path.join(CONFIG.LOCAL_PATH, f"mask_{filename}")
+    tmp_path = os.path.join(CONFIG.LOCAL_PATH, "tmp")
+    image_pil.save(image_file_path)
+    mask_pil.save(mask_file_path)
+    command = [
+        'iopaint',
+        'run',
+        '--model=ldm',
+        '--device=cuda',
+        f'--model-dir={CONFIG.MODEL_PATH}',
+        f'--image={image_file_path}',
+        f'--mask={mask_file_path}',
+        f'--output={tmp_path}'
+    ]
+
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}")
+
+    image_removed_pil = Image.open(os.path.join(tmp_path, filename))
+    
+
+    # image_removed_pil = RemoveObject()(image_pil, mask_pil)
     upload_file(image_pil, filename, processed=False, plugin_name="remove_object")
     _, image_high_url, image_low_url = upload_file(image_removed_pil, filename, processed=True, plugin_name="remove_object")
 
@@ -953,7 +986,7 @@ def swap_face():
     else:
         email = None
 
-    logging.info(f"{email}")
+    logging.info(f"email: {email}")
 
     filename = source.filename
     filename_target = target.filename

@@ -13,6 +13,7 @@ from PIL import Image
 import torch
 from torch.hub import download_url_to_file, get_dir
 from urllib.parse import urlparse
+from typing import List, Optional
 
 import config as CONFIG
 
