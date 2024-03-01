@@ -6,7 +6,9 @@ import hashlib
 import logging
 import random
 import time
+import queue
 import string
+import requests
 import subprocess
 import multiprocessing
 from pathlib import Path
@@ -132,6 +134,8 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+# global
+global_queue = queue.Queue()
 
 
 """
@@ -789,6 +793,14 @@ def upscaler():
 
     logging.info(f"{email}")
 
+    # wating for all requests done
+    queue_id = generate_random_string()
+    global_queue.put(queue_id)
+    while True:
+        if not global_queue.empty() and global_queue.queue[0] == queue_id:
+            break
+        time.sleep(1)
+
     filename = image.filename
     image_pil = Image.open(image)
 
@@ -805,6 +817,9 @@ def upscaler():
     #     user_pro = check_user_pro(email)
     #     if user_pro["effective"] == "0":
     #         image_high_url = ""
+
+    global_queue.get()
+    logging.info(f"finished: upscaler: {queue_id} from the queue.")
 
     return jsonify({"status": "1", "msg": "放大完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
@@ -865,6 +880,14 @@ def remove_object():
 
     logging.info(f"{email}")
 
+    # wating for all requests done
+    queue_id = generate_random_string()
+    global_queue.put(queue_id)
+    while True:
+        if not global_queue.empty() and global_queue.queue[0] == queue_id:
+            break
+        time.sleep(1)
+
     filename = image.filename
     image_pil = Image.open(image)
     mask_pil = Image.open(mask)
@@ -913,6 +936,9 @@ def remove_object():
     #     user_pro = check_user_pro(email)
     #     if user_pro["effective"] == "0":
     #         image_high_url = ""
+
+    global_queue.get()
+    logging.info(f"finished: remove object: {queue_id} from the queue.")
 
     return jsonify({"status": "1", "msg": "消除物体完成", "image_high_url": image_high_url, "image_low_url": image_low_url})
 
@@ -970,6 +996,8 @@ def swap_face():
     else:
         logging.info(f"ip: {ip}") 
 
+    api_token = request.form.get('token')
+
     mysql_connector = MySQLConnector()
     mysql_connector.connect()
     if ip:
@@ -993,9 +1021,6 @@ def swap_face():
     source_pil = Image.open(source)
     target_pil = Image.open(target)
 
-    """
-    
-    """
 
     # source_pil.save("source.jpg")
     # target_pil.save("target.jpg")
@@ -1003,10 +1028,10 @@ def swap_face():
         source_pil = source_pil.convert("RGB")
     if target_pil.mode == "RGBA":
         target_pil = target_pil.convert("RGB")
-    # try:
-    swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
-    # except:
-    #   return jsonify({"status": "1", "msg": "换脸", "image_high_url": "", "image_low_url": ""})
+    try:
+        swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
+    except:
+        return jsonify({"status": "-100", "msg": "源或目标图片未能检测到完整的人脸，请上传新的图片尝试，不会扣除有效次数", "image_high_url": "", "image_low_url": ""})
     upload_file(source_pil, f"faceswap_source_{filename}", processed=False, plugin_name="")
     upload_file(target_pil, f"faceswap_target_{filename_target}", processed=False, plugin_name="")
     _, image_high_url, image_low_url = upload_file(swapped_image_pil, filename, processed=True, plugin_name="face_swapped")
@@ -1019,6 +1044,112 @@ def swap_face():
     #         image_high_url = ""
 
     return jsonify({"status": "1", "msg": "换脸", "image_high_url": image_high_url, "image_low_url": image_low_url})
+
+
+
+@app.route("/api/plugin/faceswap", methods=["POST"])
+def swap_face_api():
+    """
+    换脸
+
+    ---
+    tags:
+      - Plugin
+    parameters:
+      - name: source
+        in: formData
+        type: file
+        required: true
+        description: 源人脸图片
+      - name: target
+        in: formData
+        type: file
+        required: true
+        description: 待被替换人脸图片
+      - name: token
+        in: formData
+        type: string
+        required: true
+        description: token
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1"]
+              description: 1 => 成功
+            msg:
+              type: string
+              enum: ["换脸完成"]
+              description: 提示信息. status==1 => "换脸完成"
+            image_high_url:
+              type: string
+              description: 处理后的原始分辨率图片url. status==1 => url
+            image_low_url:
+              type: string
+              description: 处理后的低分辨率图片url. status==1 => url
+    """
+    source = request.files["source"]
+    target = request.files["target"]
+
+    api_token = request.form.get('token')
+    if not api_token:
+        return jsonify({"status": "-30", "msg": "token不存在", "image_high_url": "", "image_low_url": "", "remains": ""})
+
+    mysql_connector = MySQLConnector()
+    mysql_connector.connect()
+
+    filename = source.filename
+    filename_target = target.filename
+    source_pil = Image.open(source)
+    target_pil = Image.open(target)
+
+
+    # source_pil.save("source.jpg")
+    # target_pil.save("target.jpg")
+    if source_pil.mode == "RGBA":
+        source_pil = source_pil.convert("RGB")
+    if target_pil.mode == "RGBA":
+        target_pil = target_pil.convert("RGB")
+    try:
+        swapped_image_pil = FaceSwap()(source_pil, filename, target_pil)
+    except:
+        return jsonify({"status": "-100", "msg": "源或目标图片未能检测到完整的人脸，请上传新的图片尝试，不会扣除有效次数", "image_high_url": "", "image_low_url": "", "remains": ""})
+    upload_file(source_pil, f"faceswap_source_{filename}", processed=False, plugin_name="")
+    upload_file(target_pil, f"faceswap_target_{filename_target}", processed=False, plugin_name="")
+    _, image_high_url, image_low_url = upload_file(swapped_image_pil, filename, processed=True, plugin_name="face_swapped")
+
+    # if email is None:
+    #     image_high_url = ""
+    # else:
+    #     user_pro = check_user_pro(email)
+    #     if user_pro["effective"] == "0":
+    #         image_high_url = ""
+
+    logging.info(f"from api")
+    mysql_connector = MySQLConnector()
+    mysql_connector.connect()
+
+    query = f"SELECT counts FROM apiusage WHERE token = '{api_token}'"
+    result = mysql_connector.execute_query(query)
+    if len(result) == 0:
+        return jsonify({"status": "-20", "msg": "token无效", "image_high_url": "", "image_low_url": "", "remains": ""})
+    token_counts = result[0][0]
+    logging.info(f"apicounts of {api_token}: {token_counts}")
+    
+    if int(token_counts) > 0:
+        token_counts = int(token_counts)
+        token_counts -= 1
+        query = f"update apiusage set counts='{token_counts}' WHERE token = '{api_token}'"
+        result = mysql_connector.execute_query(query)
+        mysql_connector.disconnect()
+        return jsonify({"status": "1", "msg": "换脸成功", "image_high_url": image_high_url, "image_low_url": image_low_url, "remains": f"{token_counts}"})
+    else:
+        return jsonify({"status": "-10", "msg": "token次数用完", "image_high_url": "", "image_low_url": "", "remains": ""})
+
 
 
 """
@@ -1373,6 +1504,66 @@ def notify_order():
     return {"notify": "done"}
 
 
+@app.route('/payment/notification', methods=['POST'])
+def payment_notification():
+    data = request.get_json()
+    print('Payment notification received:', json.dumps(data, indent=2))
+    return '', 200
+
+client_id = "AYMgaWCqhv9FPqVg8MTXvpRsAK0mPSyUa6I7nn1rTbZW-A7J-VwQJQwHJ3m0vQ8f00rYBu4kSnneZcD9"
+client_secret = "EPLljnTsAt2s8-LU-1dhoX93T0mz74V6O55RpQM3cVi-hZvAuMNaZWEDIdaeg0H3nv9DABfPF7noAcv_"
+
+@app.route('/create-paypal-order', methods=['POST'])
+def create_paypal_order():
+    amount = request.json.get('amount')
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {get_access_token()}'
+    }
+    data = {
+        "intent": "CAPTURE",
+        "purchase_units": [
+            {
+                "amount": {
+                    "currency_code": "USD",
+                    "value": amount
+                }
+            }
+        ]
+    }
+    response = requests.post('https://api.paypal.com/v2/checkout/orders', json=data, headers=headers)
+    logging.info(response)
+    if response.status_code == 201:
+        order_id = response.json()['id']
+        return jsonify({'orderID': order_id})
+    else:
+        return jsonify({'error': response.json()}), 400
+
+@app.route('/webhook', methods=['POST'])
+def paypal_webhook():
+    # 处理来自PayPal的Webhook通知
+    # 在这里处理支付成功后的逻辑，比如更新订单状态等
+    data = request.json
+    event_type = data['event_type']
+    if event_type == 'PAYMENT.CAPTURE.COMPLETED':
+        order_id = data['resource']['id']
+        # 在这里处理支付成功后的逻辑，比如更新订单状态等
+        print(f"Payment successful! Order ID: {order_id}")
+    return jsonify({'success': True})
+
+def get_access_token():
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    data = {
+        'grant_type': 'client_credentials'
+    }
+    response = requests.post('https://api.paypal.com/v1/oauth2/token', data=data, headers=headers, auth=(client_id, client_secret))
+
+    logging.info(response)
+
+    access_token = response.json()['access_token']
+    return access_token
 
 
 if __name__ == "__main__":

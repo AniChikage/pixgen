@@ -75,6 +75,8 @@ class FaceSwap():
             return None
         res_face = res_faces[destFaceId-1]
 
+        logging.warning(f"number of faces detected: {len(res_faces)}")
+
         result = swapper.get(faceDestination, res_face, source_face, paste_back=True)
         return result
 
@@ -92,6 +94,7 @@ class FaceSwap():
         dst = np.array(target)
 
         swapped_image = self.swap_faces(src, 1, dst, 1)
+        
         swapped_image = cv2.cvtColor(swapped_image, cv2.COLOR_RGB2BGR)
         swapped_image_pil = self.enhance(swapped_image)
 
