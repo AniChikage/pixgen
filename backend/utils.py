@@ -8,6 +8,8 @@ import paramiko
 import cv2
 import redis
 import numpy as np
+import requests
+from io import BytesIO
 from PIL import Image
 
 import torch
@@ -142,6 +144,21 @@ def filter_wx_code(code):
         redis_client.expire(token, 5)
         return code
 
+
+def download_image(url, filename):
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(filename, 'wb') as f:
+            f.write(response.content)
+
+def read_image_from_url(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        image = Image.open(BytesIO(response.content))
+        return image
+    else:
+        print("Failed to download image from URL:", url)
+        return None
 
 def get_email_from_token(token):
     email = redis_client.get(token)

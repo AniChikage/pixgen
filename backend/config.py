@@ -24,5 +24,13 @@ PRICE_CONFIG = {
     "0.01": "trial",
     "1.90": "trial",
     "4.90": "flexible",
-    "9.90": "plus"
+    "9.90": "plus",
+    "14.90": "package1",
+    "24.90": "package2",
+    "99.90": "package3",
+    "149.90": "package4",
+    "0.02": "package1",
+    "0.03": "package2",
+    "0.04": "package3",
+    "0.05": "package4"
 }

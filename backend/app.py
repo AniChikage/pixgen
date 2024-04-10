@@ -47,10 +47,12 @@ from utils import (
      resize_mask,
      enrich_mask,
      upload_file, 
+     download_image,
      generate_token, 
      filter_wx_code,
      down_image_size,
      get_email_from_token, 
+     read_image_from_url,
      generate_random_string, 
      generate_validation_code,
      get_validation_code_from_email
@@ -280,6 +282,76 @@ def get_validation_code():
     return jsonify({"status": "1", "msg": "发送邮件成功"})
 
 
+@app.route("/api/user/forgetpassword", methods=["POST"])
+def forget_password():
+    """
+    获取邮箱验证码
+
+    ---
+    tags:
+      - User
+    parameters:
+      - name: email
+        in: formData
+        type: string
+        required: true
+        description: 邮箱地址
+    responses:
+      200:
+        description: 响应
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: ["1", "-1"]
+              description: 1 => 成功; -1 => 失败
+            msg:
+              type: string
+              enum: ["发送邮件成功", "发送邮件失败"]
+              description: 提示信息. status==1 => "发送邮件成功"; status==-1 => "发送邮件失败"
+    """
+    email = request.form["email"]
+
+    mail_host = "smtp.163.com" 
+    mail_user = os.environ.get("SENDER_MAIL")
+    mail_pass = os.environ.get("MAIL_PASS")
+    
+    sender = mail_user
+    receivers = [email] 
+    
+    validation_code = generate_validation_code(email)
+
+    mysql_connector = MySQLConnector()
+    mysql_connector.connect()
+    query = f"SELECT password FROM user WHERE email = '{email}'"
+    result = mysql_connector.execute_query(query)
+    if not result:
+        return jsonify({"status": "-1", "msg": "邮箱不存在"})
+    mysql_connector.disconnect()
+
+    password = result[0][0]
+
+    message = MIMEText(f"您的密码是: {password}", "plain", "utf-8")   
+    message["From"] = mail_user
+    message["To"] = email     
+    
+    subject = "PIXGEN密码"
+    message["Subject"] = Header(subject, "utf-8")
+    
+    try:
+        smtpObj = smtplib.SMTP()
+        smtpObj.connect(mail_host, 25) 
+        smtpObj.login(mail_user, mail_pass)
+        smtpObj.sendmail(sender, receivers, message.as_string())
+        logging.info("邮件发送成功")
+    except smtplib.SMTPException:
+        logging.info("Error: 无法发送邮件")
+        return jsonify({"status": "-1", "msg": "发送邮件失败"})
+
+    return jsonify({"status": "1", "msg": "发送邮件成功"})
+
+
 @app.route("/api/user/login_user", methods=["POST"])
 def login_user():
     """
@@ -444,10 +516,10 @@ def user_profile():
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
     else:
-        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": -1})
+        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": -1, "api_token": "暂未购买API token", "api_count": 0})
     email = get_email_from_token(token)
     if email is None:
-        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": -1})
+        return jsonify({"status": "-10", "msg": "登录有效期已过，请重新登陆", "username": "", "effective_timestamp": "", "effective_counts": -1, "api_token": "暂未购买API token", "api_count": 0})
     logging.info(f"{email} login...")
 
     mysql_connector = MySQLConnector()
@@ -456,7 +528,7 @@ def user_profile():
     result = mysql_connector.execute_query(query)
     mysql_connector.disconnect()
     if not result:
-        return jsonify({"status": "-1", "msg": "获取资料失败", "username": "", "effective_timestamp": "", "effective_counts": -1})
+        return jsonify({"status": "-1", "msg": "获取资料失败", "username": "", "effective_timestamp": "", "effective_counts": -1, "api_token": "暂未购买API token", "api_count": 0})
 
     username, effective_timestamp, effective_counts = result[0]
 
@@ -469,9 +541,20 @@ def user_profile():
         if current_time > target_time:
             effective_timestamp = "-"
 
+    api_token = "暂未购买API token"
+    api_counts = 0
+    mysql_connector = MySQLConnector()
+    mysql_connector.connect()
+    query = f"SELECT token, counts FROM apiusage WHERE email = '{email}'"
+    result = mysql_connector.execute_query(query)
+    mysql_connector.disconnect()
+    if result:
+        api_token = result[0][0]
+        api_counts = result[0][1]
+
     return jsonify({"status": "1", "msg": "获取资料成功", "username": username, \
                     "effective_timestamp": effective_timestamp, \
-                    "effective_counts": effective_counts})
+                    "effective_counts": effective_counts, "api_token": api_token, "api_count": api_counts})
 
 
 def check_user_pro(email):
@@ -1092,21 +1175,37 @@ def swap_face_api():
               type: string
               description: 处理后的低分辨率图片url. status==1 => url
     """
-    source = request.files["source"]
-    target = request.files["target"]
+    param_type = request.form.get('type')
+    if not param_type:
+        return jsonify({"status": "-40", "msg": "参数不完整", "image_high_url": "", "image_low_url": "", "remains": ""})
 
     api_token = request.form.get('token')
     if not api_token:
         return jsonify({"status": "-30", "msg": "token不存在", "image_high_url": "", "image_low_url": "", "remains": ""})
 
+    if param_type == "url":
+        try:
+            source = request.form.get("source")
+            target = request.form.get("target")
+            filename = os.path.basename(source)
+            filename_target = os.path.basename(target)
+            source_pil = read_image_from_url(source)
+            target_pil = read_image_from_url(target)
+        except:
+            return jsonify({"status": "-50", "msg": "参数错误，请检查参数", "image_high_url": "", "image_low_url": "", "remains": ""})
+    elif param_type == "file":
+        try:
+            source = request.files["source"]
+            target = request.files["target"]
+            filename = source.filename
+            filename_target = target.filename
+            source_pil = Image.open(source)
+            target_pil = Image.open(target)
+        except:
+            return jsonify({"status": "-50", "msg": "参数错误，请检查参数", "image_high_url": "", "image_low_url": "", "remains": ""})
+
     mysql_connector = MySQLConnector()
     mysql_connector.connect()
-
-    filename = source.filename
-    filename_target = target.filename
-    source_pil = Image.open(source)
-    target_pil = Image.open(target)
-
 
     # source_pil.save("source.jpg")
     # target_pil.save("target.jpg")
@@ -1325,7 +1424,11 @@ def list_orders():
       "0.03": "试用",
       "1.90": "试用",
       "4.90": "灵活",
-      "9.90": "月付"
+      "9.90": "月付",
+      "14.90": "套餐一",
+      "24.90": "套餐二",
+      "99.90": "套餐三",
+      "149.90": "套餐四"
     }
     for row in result:
         order_item = {}
@@ -1474,6 +1577,14 @@ def notify_order():
     last_effective_timestamp, last_effective_counts = result[0]
     logging.info(f"last_effective_timestamp: {last_effective_timestamp}, last_effective_counts: {last_effective_counts}")
 
+    # api_count = 0
+    # query = f"SELECT counts FROM apiusage WHERE email = '{email}'"
+    # result = mysql_connector.execute_query(query)
+    # if result:
+    #     last_api_counts = result[0]
+    #     api_count += last_api_counts
+    #     # logging.info(f"last_effective_timestamp: {last_effective_timestamp}, last_effective_counts: {last_effective_counts}")
+
     if trade_status == "TRADE_SUCCESS":
         prices = CONFIG.PRICE_CONFIG
         subscription = prices[total_amount]
@@ -1498,6 +1609,28 @@ def notify_order():
             query = f"update user set effective_timestamp='{effective_timestamp}' where email='{email}'"
             result = mysql_connector.execute_query(query)
             logging.info(f"update {email} from {last_effective_timestamp} to {effective_timestamp}")
+        
+        package_counts = {
+          "package1": 500,
+          "package2": 1000,
+          "package3": 5000,
+          "package4": 10000
+        }
+        if "package" in subscription:
+            api_count = 0
+            query = f"SELECT counts FROM apiusage WHERE email = '{email}'"
+            result = mysql_connector.execute_query(query)
+            
+            if not result:
+                api_token = generate_random_string(24)
+                query = f"INSERT INTO apiusage (email, token, counts) VALUES \
+                   ('{email}', '{api_token}', {package_counts[subscription]})"
+                mysql_connector.execute_query(query)
+            else:
+                api_count += int(result[0][0])
+                api_count += package_counts[subscription]
+                query = f"update apiusage set counts={api_count} where email='{email}'"
+                mysql_connector.execute_query(query)         
 
     mysql_connector.disconnect()
     logging.info({"notify": "done"})
